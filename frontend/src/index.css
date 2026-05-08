@@ -1,0 +1,147 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Stitch CSS Custom Props ── */
+@layer base {
+  :root {
+    --background: 220 35% 98%;        /* #f7f9ff */
+    --foreground: 216 20% 12%;        /* #181c20 */
+    --card: 0 0% 100%;
+    --card-foreground: 216 20% 12%;
+    --primary: 204 100% 30%;          /* #00639a */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 218 15% 39%;         /* #545f73 */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 216 20% 93%;
+    --muted-foreground: 215 12% 43%;  /* #404750 */
+    --accent: 216 30% 92%;
+    --accent-foreground: 216 20% 12%;
+    --destructive: 0 74% 42%;         /* #ba1a1a */
+    --destructive-foreground: 0 0% 100%;
+    --border: 216 18% 80%;            /* #c0c7d1 */
+    --input: 216 18% 80%;
+    --ring: 204 100% 30%;
+    --radius: 1rem;                   /* 16px */
+  }
+
+  * { @apply border-border; box-sizing: border-box; }
+
+  body {
+    @apply bg-brand-bg text-stitch-on-surface font-sans;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4 { @apply font-heading; }
+}
+
+/* ── Stitch Component Classes ── */
+@layer components {
+
+  /* Cards - exact Stitch: white bg, 16px radius, soft elevation, outline-variant border */
+  .stitch-card {
+    @apply bg-white rounded-lg border border-stitch-outline-variant shadow-soft;
+  }
+  .stitch-card-hover {
+    @apply hover:-translate-y-0.5 hover:shadow-card-hover transition-all duration-200;
+  }
+
+  /* KPI stat card */
+  .stat-card {
+    @apply bg-white rounded-lg border border-stitch-outline-variant shadow-soft hover:-translate-y-0.5 hover:shadow-card-hover transition-all duration-200 p-lg;
+  }
+
+  /* AI insight card: left border accent */
+  .ai-insight-card {
+    @apply bg-white rounded-lg border border-stitch-outline-variant;
+    border-left: 4px solid #5BAAEC;
+    box-shadow: 0 4px 12px -2px rgba(91, 170, 236, 0.15);
+  }
+
+  /* AI glow card (blue tinted bg) */
+  .ai-card {
+    @apply bg-stitch-surface-container-low border border-stitch-secondary-container rounded-lg;
+    box-shadow: 0 4px 12px -2px rgba(91, 170, 236, 0.12);
+  }
+
+  /* Sidebar nav links */
+  .nav-link {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-stitch-on-surface-variant
+           hover:text-stitch-on-surface hover:bg-stitch-surface-container
+           font-medium transition-all duration-150 text-base;
+  }
+  .nav-link.active {
+    @apply bg-stitch-primary-container/15 text-brand-blue-dark font-semibold;
+  }
+
+  /* Badges */
+  .badge-success {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-green-50 text-green-700;
+  }
+  .badge-warning {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700;
+  }
+  .badge-danger {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700;
+  }
+  .badge-info {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700;
+  }
+  .badge-secure {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-green-50 text-green-700;
+  }
+
+  /* Stitch primary button (bg = primary-container = #5BAAEC) */
+  .btn-primary {
+    @apply bg-stitch-primary-container text-stitch-on-primary-container
+           px-lg py-sm rounded-lg font-semibold text-base
+           shadow-soft active:scale-95 hover:brightness-105 transition-all duration-200;
+  }
+
+  /* Outline button */
+  .btn-outline {
+    @apply border border-brand-blue text-brand-blue-dark
+           px-lg py-sm rounded-lg font-semibold text-base
+           hover:bg-brand-blue/5 active:scale-95 transition-all duration-200;
+  }
+
+  /* Section title (h3-section font style) */
+  .section-title {
+    @apply font-heading text-xl font-semibold text-stitch-on-surface;
+  }
+
+  /* Input field */
+  .stitch-input {
+    @apply w-full px-4 py-3 rounded-lg border border-stitch-outline-variant
+           text-base text-stitch-on-surface bg-white
+           focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue
+           placeholder:text-stitch-on-surface-variant transition-all;
+  }
+
+  /* Modal overlay */
+  .modal-overlay {
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm;
+  }
+  .modal-panel {
+    @apply bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 animate-scale-in overflow-y-auto max-h-[90vh];
+  }
+}
+
+/* ── Custom scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c0c7d1; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #707881; }
+
+/* ── Material Symbols font-variation ── */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* ── Page animations ── */
+.page-enter {
+  animation: fade-in 0.35s ease-out both;
+}

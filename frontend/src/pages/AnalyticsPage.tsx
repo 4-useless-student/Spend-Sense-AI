@@ -1,0 +1,164 @@
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend, LineChart, Line,
+} from "recharts";
+import { formatCurrency } from "@/lib/utils";
+import { expenseByCategory, weeklyExpense, monthlyTrend, recentTransactions } from "@/data/mockData";
+import { Filter } from "lucide-react";
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload?.length) {
+    return (
+      <div className="bg-white border border-stitch-outline-variant rounded-lg p-3 shadow-soft text-sm">
+        <p className="font-semibold mb-1">{label}</p>
+        <p style={{ color: payload[0].color || "#5BAAEC" }}>{formatCurrency(payload[0].value)}</p>
+      </div>
+    );
+  }
+  return null;
+};
+
+export function AnalyticsPage() {
+  const totalExpense = expenseByCategory.reduce((s, c) => s + c.value, 0);
+
+  return (
+    <div className="space-y-xxl">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-heading text-h2-kpi text-stitch-on-surface">Phân Tích Chi Tiêu</h1>
+          <p className="text-body-lg text-stitch-on-surface-variant mt-1">Tháng 5 · 2026</p>
+        </div>
+        <button className="flex items-center gap-2 border border-stitch-outline-variant px-4 py-2.5 rounded-lg text-base font-medium text-stitch-on-surface hover:bg-stitch-surface-container transition-colors">
+          <Filter className="w-4 h-4" />
+          Bộ lọc
+        </button>
+      </div>
+
+      {/* Summary Cards */}
+      <section className="grid grid-cols-3 gap-lg">
+        {[
+          { label: "Tổng chi tiêu", value: formatCurrency(totalExpense), sub: "tháng 5" },
+          { label: "Còn lại", value: formatCurrency(25_000_000 - totalExpense), sub: "từ thu nhập", green: true },
+          { label: "Số danh mục", value: `${expenseByCategory.length}`, sub: "danh mục chi" },
+        ].map((s) => (
+          <div key={s.label} className="stitch-card stitch-card-hover p-lg text-center">
+            <div className={`font-heading text-h2-kpi font-bold ${s.green ? "text-success" : "text-stitch-on-surface"}`}>{s.value}</div>
+            <div className="text-body-sm text-stitch-on-surface-variant mt-1">{s.label}</div>
+          </div>
+        ))}
+      </section>
+
+      {/* Charts Row */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-xl">
+        {/* Pie */}
+        <div className="stitch-card p-lg">
+          <h3 className="section-title mb-lg">Phân Bổ Theo Danh Mục</h3>
+          <ResponsiveContainer width="100%" height={260}>
+            <PieChart>
+              <Pie data={expenseByCategory} cx="50%" cy="50%" innerRadius={65} outerRadius={95}
+                paddingAngle={3} dataKey="value" labelLine={false}
+                label={({ cx, cy, midAngle, outerRadius: or, percent }) => {
+                  const R = Math.PI / 180;
+                  const r = or + 22;
+                  const x = cx + r * Math.cos(-midAngle * R);
+                  const y = cy + r * Math.sin(-midAngle * R);
+                  if (percent < 0.07) return null;
+                  return <text x={x} y={y} fill="#404750" textAnchor={x > cx ? "start" : "end"} dominantBaseline="central" fontSize={12}>{`${(percent * 100).toFixed(0)}%`}</text>;
+                }}
+              >
+                {expenseByCategory.map((e) => <Cell key={e.name} fill={e.color} />)}
+              </Pie>
+              <Legend iconType="circle" iconSize={10} formatter={(v) => <span className="text-body-sm text-stitch-on-surface">{v}</span>} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Weekly Bar */}
+        <div className="stitch-card p-lg">
+          <div className="flex items-center justify-between mb-lg">
+            <h3 className="section-title">Chi Tiêu Tuần Này</h3>
+            <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-label-caps">7 ngày</span>
+          </div>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={weeklyExpense} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
+              <XAxis dataKey="day" tick={{ fontSize: 13, fill: "#404750" }} axisLine={false} tickLine={false} />
+              <YAxis hide />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="amount" fill="#5BAAEC" radius={[8, 8, 0, 0]} maxBarSize={44} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      {/* Line Chart */}
+      <div className="stitch-card p-lg">
+        <h3 className="section-title mb-lg">Xu Hướng Thu Chi 7 Tháng</h3>
+        <ResponsiveContainer width="100%" height={200}>
+          <LineChart data={monthlyTrend} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
+            <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#404750" }} axisLine={false} tickLine={false} />
+            <YAxis hide />
+            <Tooltip formatter={(v: number, n: string) => [formatCurrency(v), n === "thuNhap" ? "Thu nhập" : "Chi tiêu"]} />
+            <Line type="monotone" dataKey="thuNhap" stroke="#5BAAEC" strokeWidth={2.5} dot={{ r: 4, fill: "#5BAAEC" }} />
+            <Line type="monotone" dataKey="chiTieu" stroke="#F59E0B" strokeWidth={2.5} dot={{ r: 4, fill: "#F59E0B" }} strokeDasharray="5 3" />
+          </LineChart>
+        </ResponsiveContainer>
+        <div className="flex gap-5 mt-3 text-body-sm text-stitch-on-surface-variant">
+          <span className="flex items-center gap-1.5"><span className="w-4 h-0.5 bg-stitch-primary-container rounded-full inline-block" />Thu nhập</span>
+          <span className="flex items-center gap-1.5"><span className="w-4 h-0.5 bg-warning rounded-full inline-block" />Chi tiêu</span>
+        </div>
+      </div>
+
+      {/* Category Breakdown */}
+      <div className="stitch-card p-lg">
+        <h3 className="section-title mb-lg">Chi Tiết Danh Mục</h3>
+        <div className="space-y-4">
+          {expenseByCategory.map((cat) => (
+            <div key={cat.name} className="flex items-center gap-4">
+              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between text-base mb-1.5">
+                  <span className="font-medium text-stitch-on-surface">{cat.name}</span>
+                  <span className="text-stitch-on-surface-variant tabular-nums">{formatCurrency(cat.value)}</span>
+                </div>
+                <div className="h-2 rounded-full bg-stitch-surface-container-high overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-700" style={{ width: `${cat.percent}%`, backgroundColor: cat.color }} />
+                </div>
+              </div>
+              <div className="w-10 text-right text-body-sm text-stitch-on-surface-variant tabular-nums font-semibold">{cat.percent}%</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* All Transactions */}
+      <div className="stitch-card p-lg">
+        <div className="flex items-center justify-between mb-lg">
+          <h3 className="section-title">Tất Cả Giao Dịch</h3>
+          <span className="border border-stitch-outline-variant text-stitch-on-surface-variant px-3 py-1 rounded-full text-body-sm">
+            {recentTransactions.length} giao dịch
+          </span>
+        </div>
+        <div className="divide-y divide-stitch-outline-variant/60">
+          {recentTransactions.map((txn) => (
+            <div key={txn.id} className="flex items-center gap-4 py-3.5">
+              <div className="w-11 h-11 rounded-lg bg-stitch-surface-container flex items-center justify-center text-xl flex-shrink-0">{txn.icon}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-base font-medium text-stitch-on-surface truncate">{txn.description}</div>
+                <div className="text-body-sm text-stitch-on-surface-variant">{txn.category}</div>
+              </div>
+              <div className="text-right">
+                <div className={`text-base font-bold tabular-nums ${txn.type === "income" ? "text-success" : "text-stitch-on-surface"}`}>
+                  {txn.type === "income" ? "+" : ""}{formatCurrency(Math.abs(txn.amount))}
+                </div>
+                <span className={`text-label-caps px-2 py-0.5 rounded-full ${txn.type === "income" ? "bg-green-50 text-green-700" : "bg-stitch-surface-container text-stitch-on-surface-variant"}`}>
+                  {txn.type === "income" ? "Thu" : "Chi"}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
