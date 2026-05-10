@@ -42,6 +42,7 @@ build/
 
 # Skill-specific
 .claude/
+.agents/
 .code-review-graph/
 .cursorrules
 .mcp.json
