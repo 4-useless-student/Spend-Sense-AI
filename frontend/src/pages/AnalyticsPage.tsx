@@ -58,7 +58,7 @@ export function AnalyticsPage() {
             <PieChart>
               <Pie data={expenseByCategory} cx="50%" cy="50%" innerRadius={65} outerRadius={95}
                 paddingAngle={3} dataKey="value" labelLine={false}
-                label={({ cx, cy, midAngle, outerRadius: or, percent }) => {
+                label={({ cx = 0, cy = 0, midAngle = 0, outerRadius: or = 0, percent = 0 }) => {
                   const R = Math.PI / 180;
                   const r = or + 22;
                   const x = cx + r * Math.cos(-midAngle * R);
@@ -98,7 +98,7 @@ export function AnalyticsPage() {
           <LineChart data={monthlyTrend} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
             <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#404750" }} axisLine={false} tickLine={false} />
             <YAxis hide />
-            <Tooltip formatter={(v: number, n: string) => [formatCurrency(v), n === "thuNhap" ? "Thu nhập" : "Chi tiêu"]} />
+            <Tooltip formatter={(v: unknown, n: unknown) => [formatCurrency(Number(v ?? 0)), n === "thuNhap" ? "Thu nhập" : "Chi tiêu"]} />
             <Line type="monotone" dataKey="thuNhap" stroke="#5BAAEC" strokeWidth={2.5} dot={{ r: 4, fill: "#5BAAEC" }} />
             <Line type="monotone" dataKey="chiTieu" stroke="#F59E0B" strokeWidth={2.5} dot={{ r: 4, fill: "#F59E0B" }} strokeDasharray="5 3" />
           </LineChart>

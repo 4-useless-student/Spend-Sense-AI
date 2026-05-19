@@ -1,4 +1,4 @@
-import { ArrowUpRight, ArrowDownRight, Sparkles, TrendingUp, ShieldCheck, Zap } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, TrendingUp, ShieldCheck, Zap } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -64,7 +64,7 @@ export function InvestmentPage() {
               </defs>
               <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#404750" }} axisLine={false} tickLine={false} />
               <YAxis hide />
-              <Tooltip formatter={(v: number) => [formatCurrency(v), "Giá trị"]} />
+              <Tooltip formatter={(v: unknown) => [formatCurrency(Number(v ?? 0)), "Giá trị"]} />
               <Area type="monotone" dataKey="value" stroke="#5BAAEC" strokeWidth={2.5} fill="url(#portGrad)" />
             </AreaChart>
           </ResponsiveContainer>

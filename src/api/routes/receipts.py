@@ -1,9 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, HTTPException, UploadFile, status
 
-from src.api.schemas import AnalyzeResponse, InsightResponse
-from src.auth.dependencies import get_current_user
-from src.db.models import User
-from src.pipeline import PipelineError, analyze_receipt
+from src.api.schemas import (
+    AnalyzeResponse,
+    DetectedFieldResponse,
+    InsightResponse,
+    ReceiptDraftItemResponse,
+    ReceiptDraftResponse,
+    SuggestedTransactionResponse,
+)
+from src.pipeline import PipelineError, analyze_receipt_details
 
 router = APIRouter(prefix="/receipts", tags=["receipts"])
 
@@ -11,7 +16,6 @@ router = APIRouter(prefix="/receipts", tags=["receipts"])
 @router.post("/analyze", response_model=AnalyzeResponse, status_code=status.HTTP_200_OK)
 async def analyze(
     file: UploadFile,
-    current_user: User = Depends(get_current_user),
 ) -> AnalyzeResponse:
     """
     Upload a receipt image and receive an AI-generated spending insight.
@@ -33,7 +37,7 @@ async def analyze(
         )
 
     try:
-        insight = analyze_receipt(image_bytes)
+        result = analyze_receipt_details(image_bytes)
     except PipelineError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -44,7 +48,39 @@ async def analyze(
             },
         ) from exc
 
+    receipt = result["receipt"]
+    insight = result["insight"]
+    draft_items = result.get("draft_items", [])
+    fields = [
+        field
+        for field in result.get("fields", [])
+        if str(field.get("class_name", "")).strip().lower().replace("-", "_").replace(" ", "_") != "store_name"
+    ]
+    amount = sum(float(item.get("quantity", 0)) * float(item.get("unit_price", 0)) for item in draft_items)
+    if amount <= 0:
+        amount = receipt.total_amount
+
     return AnalyzeResponse(
         insight=InsightResponse.from_insight(insight),
         vector_id=insight.vector_id,
+        receipt=ReceiptDraftResponse(
+            receipt_id=receipt.id,
+            merchant=receipt.merchant,
+            purchase_date=receipt.purchase_date,
+            total_amount=amount,
+            currency=receipt.currency,
+            raw_text=receipt.raw_text,
+            items=[ReceiptDraftItemResponse(**item) for item in draft_items],
+        ),
+        suggested_transaction=SuggestedTransactionResponse(
+            type="expense",
+            amount=amount,
+            currency=receipt.currency,
+            category="khac",
+            description=receipt.merchant,
+            merchant=receipt.merchant,
+            transaction_date=receipt.purchase_date,
+            receipt_id=None,
+        ),
+        detected_fields=[DetectedFieldResponse(**field) for field in fields],
     )

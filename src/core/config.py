@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,10 +18,15 @@ class Settings(BaseSettings):
 
     # Semantic cache threshold
     similarity_threshold: float = Field(default=0.9, ge=0.0, le=1.0)
+    semantic_cache_enabled: bool = Field(default=False)
 
     # Vision model paths
     yolo_model_path: str = Field(default="models/receipt_detector.pt")
+    yolo_model_repo: str = Field(default="")
+    yolo_model_filename: str = Field(default="receipt_items_yolov11s.pt")
+    yolo_model_revision: str = Field(default="main")
     yolo_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    hf_token: str = Field(default="")
 
     # Embedding
     embedding_model: str = Field(default="all-MiniLM-L6-v2")
@@ -29,10 +34,17 @@ class Settings(BaseSettings):
     # API server
     api_host: str = Field(default="0.0.0.0")
     api_port: int = Field(default=8080)
-    debug: bool = Field(default=False)
+    debug: bool = Field(default=False, validation_alias="SPENDSENSE_DEBUG")
 
     # PostgreSQL
-    database_url: str = Field(default="postgresql+asyncpg://postgres:password@localhost:5432/spendsense")
+    database_url: str = Field(default="postgresql+asyncpg://spendsense:spendsense@localhost:5432/spendsense")
+
+    @field_validator("database_url")
+    @classmethod
+    def normalize_database_url(cls, value: str) -> str:
+        if value.startswith("postgresql://"):
+            return value.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return value
 
     # JWT
     jwt_secret_key: str = Field(default="changeme-use-a-real-secret-in-production")

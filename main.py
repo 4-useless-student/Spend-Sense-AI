@@ -5,7 +5,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import auth, feedback, insights, receipts
+from src.api.routes import auth, feedback, insights, receipts, transactions
 from src.core.config import get_settings
 from src.core.logging import configure_logging
 from src.db.base import Base, engine
@@ -38,7 +38,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173"],  # Vite dev server
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1):\d+$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -46,6 +46,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(receipts.router)
+    app.include_router(transactions.router)
     app.include_router(feedback.router)
     app.include_router(insights.router)
 

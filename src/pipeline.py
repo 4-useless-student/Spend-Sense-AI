@@ -15,6 +15,7 @@ from __future__ import annotations
 import structlog
 
 from src.cache.vector_store import cache_lookup, cache_store
+from src.core.config import get_settings
 from src.core.tool_result import ToolResult, ToolStatus
 from src.embedding.embedder import embed_text
 from src.llm.gemini_client import generate_insight
@@ -33,8 +34,12 @@ class PipelineError(Exception):
 
 
 def analyze_receipt(image_bytes: bytes) -> Insight:
+    return analyze_receipt_details(image_bytes)["insight"]
+
+
+def analyze_receipt_details(image_bytes: bytes) -> dict:
     """
-    Full pipeline: image bytes → Insight.
+    Full pipeline: image bytes → receipt draft + fields + Insight.
 
     Raises:
         PipelineError if any step returns status=error.
@@ -45,13 +50,36 @@ def analyze_receipt(image_bytes: bytes) -> Insight:
     _require_ok(detect_result, "detect")
 
     cropped: bytes = detect_result.data["cropped_bytes"]
+    detections: list[dict] = [
+        detection
+        for detection in detect_result.data.get("detections", [])
+        if str(detection.get("class_name", "")).strip().lower().replace("-", "_").replace(" ", "_") != "store_name"
+    ]
 
     # 2. OCR extraction
     log.info("pipeline.ocr.start")
-    ocr_result = extract_receipt(cropped)
+    ocr_result = extract_receipt(cropped, detections)
     _require_ok(ocr_result, "ocr")
 
-    receipt: Receipt = ocr_result.data
+    ocr_payload = ocr_result.data
+    if isinstance(ocr_payload, dict):
+        receipt: Receipt = ocr_payload["receipt"]
+        fields: list[dict] = ocr_payload.get("fields", [])
+        draft_items: list[dict] = ocr_payload.get("draft_items", [])
+    else:
+        receipt = ocr_payload
+        fields = []
+        draft_items = [
+            {
+                "id": str(item.name),
+                "name": item.name,
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "total_price": item.total_price,
+                "source_token_ids": {},
+            }
+            for item in receipt.items
+        ]
     log.info("pipeline.ocr.done", merchant=receipt.merchant, items=len(receipt.items))
 
     # 3. Embed canonical text
@@ -61,6 +89,12 @@ def analyze_receipt(image_bytes: bytes) -> Insight:
 
     vector: list[float] = embed_result.data
 
+    cfg = get_settings()
+    if not cfg.semantic_cache_enabled:
+        log.info("pipeline.cache.skipped")
+        insight = _generate_and_store(receipt, vector, skip_store=True)
+        return _details_payload(receipt, insight, fields, draft_items)
+
     # 4. Cache lookup
     log.info("pipeline.cache.lookup")
     lookup_result = cache_lookup(vector, str(receipt.id))
@@ -68,15 +102,26 @@ def analyze_receipt(image_bytes: bytes) -> Insight:
     if lookup_result.status == ToolStatus.ERROR:
         # Cache unreachable — degrade gracefully, call LLM directly
         log.warning("pipeline.cache.unreachable", hint=lookup_result.error_hint)
-        return _generate_and_store(receipt, vector, skip_store=True)
+        insight = _generate_and_store(receipt, vector, skip_store=True)
+        return _details_payload(receipt, insight, fields, draft_items)
 
     if lookup_result.ok:
         log.info("pipeline.cache.hit", similarity=lookup_result.data.similarity_score)
-        return lookup_result.data  # type: ignore[return-value]
+        return _details_payload(receipt, lookup_result.data, fields, draft_items)
 
     # 5. Cache miss → generate insight
     log.info("pipeline.cache.miss")
-    return _generate_and_store(receipt, vector)
+    insight = _generate_and_store(receipt, vector)
+    return _details_payload(receipt, insight, fields, draft_items)
+
+
+def _details_payload(receipt: Receipt, insight: Insight, fields: list[dict], draft_items: list[dict]) -> dict:
+    return {
+        "receipt": receipt,
+        "insight": insight,
+        "fields": fields,
+        "draft_items": draft_items,
+    }
 
 
 def _generate_and_store(receipt: Receipt, vector: list[float], *, skip_store: bool = False) -> Insight:

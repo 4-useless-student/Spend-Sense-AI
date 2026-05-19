@@ -1,4 +1,4 @@
-import { ArrowUpRight, ArrowDownRight, TrendingUp, Wallet, Sparkles, ArrowRight, Zap } from "lucide-react";
+import { Sparkles, ArrowRight, Zap } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -7,7 +7,6 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { Progress } from "@/components/ui/progress";
 import { formatCurrency, formatPercent, formatDate } from "@/lib/utils";
 import {
   walletSummary,
