@@ -12,12 +12,12 @@ class Base(DeclarativeBase):
 
 def _make_engine() -> object:
     settings = get_settings()
-    connect_args = {"timeout": 5}
     return create_async_engine(
         settings.database_url,
         echo=settings.debug,
-        connect_args=connect_args,
         pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=10,
     )
 
 

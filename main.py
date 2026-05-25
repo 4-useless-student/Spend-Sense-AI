@@ -8,7 +8,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.api.routes import auth, feedback, insights, receipts, transactions
 from src.core.config import get_settings
 from src.core.logging import configure_logging
-from src.db.base import Base, engine
 
 _log = logging.getLogger(__name__)
 
@@ -17,12 +16,7 @@ _log = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     cfg = get_settings()
     configure_logging(debug=cfg.debug)
-    try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        _log.info("Database tables ensured.")
-    except Exception as exc:
-        _log.warning("DB init skipped (no connection): %s", exc)
+    _log.info("SpendSense AI started.")
     yield
 
 
