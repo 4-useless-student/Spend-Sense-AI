@@ -16,6 +16,7 @@ _log = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     cfg = get_settings()
     configure_logging(debug=cfg.debug)
+    _log.info("SpendSense AI started.")
     yield
 
 
