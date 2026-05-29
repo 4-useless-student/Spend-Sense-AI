@@ -132,6 +132,7 @@ class ReceiptDraftItemResponse(BaseModel):
     name: str
     quantity: float
     unit_price: float
+    discount: float = 0.0
     total_price: float
     category: str = "khac"
     source_token_ids: dict[str, str | None] = Field(default_factory=dict)

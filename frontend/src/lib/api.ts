@@ -1,5 +1,6 @@
 const ENV_API_URL = import.meta.env.VITE_API_URL as string | undefined;
 const REQUEST_TIMEOUT_MS = Number(import.meta.env.VITE_TIMEOUT_MS ?? 15000);
+const RECEIPT_ANALYZE_TIMEOUT_MS = Number(import.meta.env.VITE_RECEIPT_TIMEOUT_MS ?? 120000);
 const API_URLS = ENV_API_URL
   ? [ENV_API_URL]
   : ["http://localhost:8080", "http://127.0.0.1:8080"];
@@ -49,6 +50,7 @@ export interface ReceiptDraftItem {
   name: string;
   quantity: number;
   unit_price: number;
+  discount: number;
   total_price: number;
   category: string;
   source_token_ids: Record<string, string | null>;
@@ -162,6 +164,9 @@ async function postReceipt(file: File): Promise<AnalyzeReceiptResult> {
   const response = await fetchWithFallback("/receipts/analyze", {
     method: "POST",
     body: form,
+  }, {
+    timeoutMs: RECEIPT_ANALYZE_TIMEOUT_MS,
+    timeoutMessage: "Backend đang xử lý OCR/AI quá lâu. Hãy thử lại với ảnh rõ hơn hoặc tăng VITE_RECEIPT_TIMEOUT_MS.",
   });
 
   if (!response.ok) {
@@ -172,11 +177,20 @@ async function postReceipt(file: File): Promise<AnalyzeReceiptResult> {
   return response.json() as Promise<AnalyzeReceiptResult>;
 }
 
-async function fetchWithFallback(path: string, init?: RequestInit): Promise<Response> {
+async function fetchWithFallback(
+  path: string,
+  init?: RequestInit,
+  options?: { timeoutMs?: number; timeoutMessage?: string },
+): Promise<Response> {
   let lastError: unknown;
+  const timeoutMs = options?.timeoutMs ?? REQUEST_TIMEOUT_MS;
   for (const baseUrl of API_URLS) {
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    let didTimeout = false;
+    const timeoutId = window.setTimeout(() => {
+      didTimeout = true;
+      controller.abort();
+    }, timeoutMs);
     try {
       return await fetch(`${baseUrl}${path}`, {
         ...init,
@@ -184,6 +198,10 @@ async function fetchWithFallback(path: string, init?: RequestInit): Promise<Resp
       });
     } catch (error) {
       lastError = error;
+      if (didTimeout) {
+        const seconds = Math.round(timeoutMs / 1000);
+        throw new Error(options?.timeoutMessage ?? `Backend xử lý quá ${seconds} giây. Vui lòng thử lại.`);
+      }
     } finally {
       window.clearTimeout(timeoutId);
     }

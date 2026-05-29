@@ -1,6 +1,6 @@
 # Project Status / Handoff
 
-Last updated: 2026-05-28  
+Last updated: 2026-05-29
 Audience: Backend / Frontend / Full-stack / DevOps / DB engineer
 
 ---
@@ -25,9 +25,10 @@ Most important current behavior:
 - If PostgreSQL is unavailable, auth routes fall back to a stateless development JWT so users can enter the app. This does not persist data.
 - Receipt analysis does not require auth or database.
 - Saving transactions still requires database if persistence is expected.
-- Receipt review now supports item-level categories and a price-mode switch:
-  - Default: `Tên món / SL / Đơn giá / Thành tiền / Danh mục`.
-  - Optional: `Tên món / Thành tiền / Danh mục`, where quantity is saved as `1`.
+- Receipt review now supports item-level categories, per-line discounts, and a price-mode switch:
+  - Default: `Tên món / SL / Đơn giá / Thành tiền / Khuyến mãi / Danh mục`.
+  - Optional: `Tên món / Thành tiền / Khuyến mãi / Danh mục`, where quantity is saved as `1`.
+  - Discount OCR tokens such as `-8.400` are attached to the nearest item row and subtracted from the row total.
 
 ---
 
@@ -139,8 +140,33 @@ Backend auth changes:
 
 Implemented in `frontend/src/components/AddTransactionModal.tsx`:
 
-- Default mode: `Tên món / SL / Đơn giá / Thành tiền / Danh mục`.
-- `Thành tiền` mode: hides `SL` and `Đơn giá`, saves `quantity = 1`, `unit_price = thành tiền`.
+- Default mode: `Tên món / SL / Đơn giá / Thành tiền / Khuyến mãi / Danh mục`.
+- `Thành tiền` mode: hides `SL` and `Đơn giá`, saves `quantity = 1`, and still shows `Khuyến mãi`.
+- The top-right review control is now the price-mode switch; the transaction-level category selector was removed from the receipt review header.
+- Original bill preview was widened for easier manual checking.
+- The old "Token chưa gán" panel was removed.
+
+### Receipt Line Discounts
+
+Implemented (2026-05-29):
+
+- `ReceiptItem` and receipt draft responses now include `discount`.
+- `src/vision/reconstructor.py` detects negative price tokens (for example `-8.400`) as discounts.
+- Discount tokens are matched to the nearest item row on the same line or immediately below it.
+- Receipt totals and suggested transaction amounts use net line totals:
+
+```text
+net line total = (quantity * unit_price or line amount) - discount
+```
+
+- When saving a transaction, the frontend sends the net item amount back through the existing `unit_price`/`quantity` payload so no new DB migration is required for discounts yet.
+
+### Dependency Compatibility Fixes
+
+Implemented (2026-05-29):
+
+- `bcrypt==4.0.1` is pinned in `pyproject.toml`.
+- This avoids the `passlib==1.7.4` incompatibility with `bcrypt==5.0.0` that caused registration to crash during password hashing.
 
 ### Income Transaction Form
 
@@ -268,6 +294,7 @@ OCR implementation notes:
 - Pillow 10 compatibility patch applied automatically on load.
 - `store_name` detections filtered out before frontend response.
 - Falls back to class-based placeholder text per field if VietOCR raises.
+- Negative price-like OCR values are treated as item discounts during row reconstruction.
 
 Known limitations:
 
@@ -282,13 +309,13 @@ Status: **Implemented**
 Features:
 
 - Upload image / capture from camera.
-- Original bill preview.
-- Detected token list.
-- Drag token into cells.
+- Wider original bill preview for manual checking.
+- OCR-backed cells can be dragged between cells.
 - Double-click cell to edit.
 - Add/remove item rows.
 - Per-item category dropdown.
 - Price mode switch: `SL x đơn giá` / `Thành tiền`.
+- Per-item discount column (`Khuyến mãi`).
 
 ### 4.4 Transaction Creation
 
@@ -423,7 +450,7 @@ Authorization: Bearer <jwt>
 
 - Auth: not required.
 - Request: `multipart/form-data`, `file`: JPEG/PNG/WebP.
-- Response includes: `insight`, `receipt`, `receipt.items[].category`, `suggested_transaction`, `detected_fields`.
+- Response includes: `insight`, `receipt`, `receipt.items[].category`, `receipt.items[].discount`, `suggested_transaction`, `detected_fields`.
 
 ### Transactions
 
@@ -448,6 +475,10 @@ Authorization: Bearer <jwt>
   ]
 }
 ```
+
+Note:
+
+- Receipt-review discounts are folded into the saved net `unit_price`/`quantity` payload until the DB schema gains a dedicated discount column.
 
 ### Insights
 
@@ -589,6 +620,8 @@ spendsense_user
 - `python -m compileall src main.py` passed.
 - `npx tsc -b` passed.
 - `npm run build` passed.
+- Receipt discount reconstruction was smoke-tested with `42.300` plus `-8.400`, producing net line total `33.900`.
+- Password hashing smoke test passed with pinned `bcrypt==4.0.1` and `passlib==1.7.4`.
 
 Known test gap:
 

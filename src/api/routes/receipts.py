@@ -56,7 +56,7 @@ async def analyze(
         for field in result.get("fields", [])
         if str(field.get("class_name", "")).strip().lower().replace("-", "_").replace(" ", "_") != "store_name"
     ]
-    amount = sum(float(item.get("quantity", 0)) * float(item.get("unit_price", 0)) for item in draft_items)
+    amount = sum(float(item.get("total_price", 0)) for item in draft_items)
     if amount <= 0:
         amount = receipt.total_amount
     suggested_category = _dominant_category(draft_items)
@@ -91,6 +91,6 @@ def _dominant_category(items: list[dict]) -> str:
     totals: dict[str, float] = {}
     for item in items:
         category = str(item.get("category") or "khac")
-        amount = float(item.get("quantity", 0)) * float(item.get("unit_price", 0))
+        amount = float(item.get("total_price", 0))
         totals[category] = totals.get(category, 0.0) + amount
     return max(totals, key=totals.get) if totals else "khac"

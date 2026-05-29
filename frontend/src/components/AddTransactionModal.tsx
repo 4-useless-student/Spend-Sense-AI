@@ -42,13 +42,14 @@ type TxType = "expense" | "income";
 type Step = "form" | "receipt" | "success";
 type CameraState = "idle" | "active" | "captured";
 type PriceMode = "unit" | "line";
-type ReviewField = "name" | "quantity" | "unit_price";
+type ReviewField = "name" | "quantity" | "unit_price" | "discount";
 
 interface ReviewItem {
   id: string;
   name: string;
   quantity: number;
   unit_price: number;
+  discount: number;
   category: string;
   source_token_ids: Record<ReviewField, string | null>;
 }
@@ -81,17 +82,25 @@ function parseMoney(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function formatMoneyInput(value: string | number): string {
+  const digits = String(value).replace(/[^\d]/g, "").replace(/^0+(?=\d)/, "");
+  return digits ? digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".") : "";
+}
+
 function makeReviewItem(item?: Partial<ReceiptDraftItem>): ReviewItem {
+  const unitPrice = Number(item?.unit_price ?? item?.total_price ?? 0);
   return {
     id: item?.id ?? crypto.randomUUID(),
     name: item?.name ?? "",
-    quantity: 1,
-    unit_price: Number(item?.total_price ?? item?.unit_price ?? 0),
+    quantity: Number(item?.quantity ?? 1) || 1,
+    unit_price: unitPrice,
+    discount: Number(item?.discount ?? 0),
     category: item?.category ?? "khac",
     source_token_ids: {
       name: item?.source_token_ids?.name ?? null,
       quantity: item?.source_token_ids?.quantity ?? null,
       unit_price: item?.source_token_ids?.unit_price ?? null,
+      discount: item?.source_token_ids?.discount ?? null,
     },
   };
 }
@@ -99,15 +108,20 @@ function makeReviewItem(item?: Partial<ReceiptDraftItem>): ReviewItem {
 function fieldLabel(field: ReviewField): string {
   if (field === "name") return "Tên món";
   if (field === "quantity") return "SL";
+  if (field === "discount") return "Khuyến mãi";
   return "Đơn giá";
 }
 
-function tokenColor(className: string): string {
-  const normalized = className.toLowerCase();
-  if (normalized === "item") return "border-blue-200 bg-blue-50 text-blue-800";
-  if (normalized === "quantity") return "border-emerald-200 bg-emerald-50 text-emerald-800";
-  if (normalized === "price") return "border-amber-200 bg-amber-50 text-amber-800";
-  return "border-stitch-outline-variant bg-stitch-surface-container text-stitch-on-surface";
+function lineSubtotal(item: ReviewItem, priceMode: PriceMode): number {
+  return priceMode === "line" ? item.unit_price : item.quantity * item.unit_price;
+}
+
+function netLineTotal(item: ReviewItem, priceMode: PriceMode): number {
+  return Math.max(lineSubtotal(item, priceMode) - item.discount, 0);
+}
+
+function formatDiscount(value: number): string {
+  return value > 0 ? `-${formatCurrency(value)}` : formatCurrency(0);
 }
 
 function isStoreNameToken(field: DetectedField): boolean {
@@ -121,7 +135,7 @@ function isQuantityToken(field: DetectedField): boolean {
 function dominantCategory(items: ReviewItem[]): string {
   const totals = new Map<string, number>();
   items.forEach((item) => {
-    totals.set(item.category, (totals.get(item.category) ?? 0) + item.unit_price);
+    totals.set(item.category, (totals.get(item.category) ?? 0) + netLineTotal(item, "unit"));
   });
   return Array.from(totals.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "khac";
 }
@@ -154,19 +168,9 @@ export function AddTransactionModal({ open, onClose }: Readonly<AddTransactionMo
   const streamRef = useRef<MediaStream | null>(null);
 
   const computedTotal = useMemo(
-    () => reviewItems.reduce((sum, item) => sum + (priceMode === "line" ? item.unit_price : item.quantity * item.unit_price), 0),
+    () => reviewItems.reduce((sum, item) => sum + netLineTotal(item, priceMode), 0),
     [priceMode, reviewItems],
   );
-
-  const assignedTokenIds = useMemo(() => {
-    const ids = new Set<string>();
-    reviewItems.forEach((item) => {
-      Object.values(item.source_token_ids).forEach((tokenId) => tokenId && ids.add(tokenId));
-    });
-    return ids;
-  }, [reviewItems]);
-
-  const unassignedTokens = detectedFields.filter((field) => !assignedTokenIds.has(field.id));
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -262,7 +266,7 @@ export function AddTransactionModal({ open, onClose }: Readonly<AddTransactionMo
       setDetectedFields((result.detected_fields ?? []).filter((field) => !isStoreNameToken(field) && !isQuantityToken(field)));
       setReviewItems(nextItems);
       setPriceMode("unit");
-      setAmount(String(nextAmount || ""));
+      setAmount(nextAmount ? formatMoneyInput(nextAmount) : "");
       setItemName(nextItems[0]?.name || nextMerchant || "");
       setCategory(suggested?.category || dominantCategory(nextItems));
       setTransactionDate(suggested?.transaction_date || new Date().toISOString().slice(0, 10));
@@ -288,6 +292,7 @@ export function AddTransactionModal({ open, onClose }: Readonly<AddTransactionMo
         if (field === "name") next.name = token.text;
         if (field === "quantity") next.quantity = parseNumber(token.text) || 1;
         if (field === "unit_price") next.unit_price = parseMoney(token.text);
+        if (field === "discount") next.discount = parseMoney(token.text);
         return next;
       }),
     );
@@ -300,6 +305,7 @@ export function AddTransactionModal({ open, onClose }: Readonly<AddTransactionMo
         if (row.id !== rowId) return row;
         if (field === "name") return { ...row, name: value };
         if (field === "quantity") return { ...row, quantity: parseNumber(value) || 1 };
+        if (field === "discount") return { ...row, discount: parseMoney(value) };
         return { ...row, unit_price: parseMoney(value) };
       }),
     );
@@ -326,7 +332,10 @@ export function AddTransactionModal({ open, onClose }: Readonly<AddTransactionMo
   const renderEditableCell = (item: ReviewItem, field: ReviewField) => {
     const isEditing = editingCell?.rowId === item.id && editingCell.field === field;
     const rawValue = field === "name" ? item.name : String(item[field]);
-    const displayValue = field === "unit_price" ? formatCurrency(item.unit_price) : rawValue;
+    const displayValue =
+      field === "unit_price" ? formatCurrency(item.unit_price) :
+      field === "discount" ? formatDiscount(item.discount) :
+      rawValue;
     const tokenId = item.source_token_ids[field];
 
     if (isEditing) {
@@ -374,7 +383,7 @@ export function AddTransactionModal({ open, onClose }: Readonly<AddTransactionMo
       : reviewItems.length
       ? reviewItems.filter((item) => item.name.trim())
       : itemName.trim()
-        ? [{ id: crypto.randomUUID(), name: itemName.trim(), quantity: 1, unit_price: total, category, source_token_ids: { name: null, quantity: null, unit_price: null } }]
+        ? [{ id: crypto.randomUUID(), name: itemName.trim(), quantity: 1, unit_price: total, discount: 0, category, source_token_ids: { name: null, quantity: null, unit_price: null, discount: null } }]
         : [];
     const transactionName = itemRows.map((item) => item.name).join(", ");
     setIsSaving(true);
@@ -389,14 +398,18 @@ export function AddTransactionModal({ open, onClose }: Readonly<AddTransactionMo
         merchant: "",
         transaction_date: transactionDate || null,
         receipt_items: itemRows
-          .map((item) => ({
+          .map((item) => {
+            const netTotal = netLineTotal(item, priceMode);
+            const quantity = priceMode === "line" ? 1 : item.quantity;
+            return {
             name: item.name,
-            quantity: priceMode === "line" ? 1 : item.quantity,
-            unit_price: item.unit_price,
+            quantity,
+            unit_price: quantity > 0 ? netTotal / quantity : netTotal,
             category: item.category,
-          })),
+            };
+          }),
       });
-      setAmount(String(total));
+      setAmount(formatMoneyInput(total));
       setStep("success");
       setTimeout(() => resetAndClose(), 1400);
     } catch (error) {
@@ -561,15 +574,14 @@ export function AddTransactionModal({ open, onClose }: Readonly<AddTransactionMo
             )}
 
             {analysis && (
-              <div className="grid grid-cols-1 lg:grid-cols-[0.95fr_1.25fr] gap-5">
+              <div className="grid grid-cols-1 xl:grid-cols-[minmax(360px,0.9fr)_minmax(760px,1.6fr)] gap-5">
                 <div className="space-y-4">
-                  <div className="stitch-card p-3">
-                    <div className="flex items-center justify-between mb-2">
+                  <div className="stitch-card p-4">
+                    <div className="mb-3">
                       <h3 className="font-heading font-semibold text-base">Bill gốc</h3>
-                      <span className="text-xs text-stitch-on-surface-variant">{detectedFields.length} token</span>
                     </div>
                     {receiptPreview && (
-                      <img src={receiptPreview} alt="Bill gốc" className="w-full max-h-[560px] object-contain rounded-lg bg-stitch-surface-container" />
+                      <img src={receiptPreview} alt="Bill gốc" className="w-full max-h-[680px] object-contain rounded-lg bg-stitch-surface-container" />
                     )}
                   </div>
                 </div>
@@ -580,48 +592,43 @@ export function AddTransactionModal({ open, onClose }: Readonly<AddTransactionMo
                       <span className="text-xs font-semibold text-stitch-on-surface-variant uppercase">Ngày</span>
                       <input className="stitch-input py-2" type="date" value={transactionDate} onChange={(event) => setTransactionDate(event.target.value)} />
                     </label>
-                    <label className="space-y-1">
-                      <span className="text-xs font-semibold text-stitch-on-surface-variant uppercase">Danh mục giao dịch</span>
-                      <select className="stitch-input py-2" value={category} onChange={(event) => setCategory(event.target.value)}>
-                        {categories.map((item) => (
-                          <option key={item.value} value={item.value}>{item.label}</option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-
-                  <div className="inline-flex rounded-lg border border-stitch-outline-variant bg-stitch-surface-container p-1 text-sm font-semibold">
-                    <button
-                      type="button"
-                      onClick={() => setPriceMode("unit")}
-                      className={`rounded-md px-3 py-2 transition-colors ${priceMode === "unit" ? "bg-white text-stitch-on-surface shadow-soft" : "text-stitch-on-surface-variant"}`}
-                    >
-                      SL x đơn giá
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPriceMode("line")}
-                      className={`rounded-md px-3 py-2 transition-colors ${priceMode === "line" ? "bg-white text-stitch-on-surface shadow-soft" : "text-stitch-on-surface-variant"}`}
-                    >
-                      Thành tiền
-                    </button>
+                    <div className="flex items-end">
+                      <div className="inline-flex w-full rounded-lg border border-stitch-outline-variant bg-stitch-surface-container p-1 text-sm font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => setPriceMode("unit")}
+                          className={`flex-1 rounded-md px-3 py-2 transition-colors ${priceMode === "unit" ? "bg-white text-stitch-on-surface shadow-soft" : "text-stitch-on-surface-variant"}`}
+                        >
+                          SL x đơn giá
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPriceMode("line")}
+                          className={`flex-1 rounded-md px-3 py-2 transition-colors ${priceMode === "line" ? "bg-white text-stitch-on-surface shadow-soft" : "text-stitch-on-surface-variant"}`}
+                        >
+                          Thành tiền
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="stitch-card overflow-x-auto">
-                    <div className={priceMode === "line" ? "min-w-[640px]" : "min-w-[760px]"}>
+                    <div className={priceMode === "line" ? "min-w-[760px]" : "min-w-[900px]"}>
                       {priceMode === "line" ? (
                         <>
-                          <div className="grid grid-cols-[1.45fr_0.9fr_1fr_40px] gap-0 bg-stitch-surface-container px-3 py-2 text-xs font-bold uppercase text-stitch-on-surface-variant">
+                          <div className="grid grid-cols-[1.35fr_0.8fr_0.8fr_1fr_40px] gap-0 bg-stitch-surface-container px-3 py-2 text-xs font-bold uppercase text-stitch-on-surface-variant">
                             <span>Tên món</span>
                             <span>Thành tiền</span>
+                            <span>Khuyến mãi</span>
                             <span>Danh mục</span>
                             <span />
                           </div>
                           <div className="divide-y divide-stitch-outline-variant/60">
                             {reviewItems.map((item) => (
-                              <div key={item.id} className="grid grid-cols-[1.45fr_0.9fr_1fr_40px] gap-0 px-3 py-2 items-center text-sm">
+                              <div key={item.id} className="grid grid-cols-[1.35fr_0.8fr_0.8fr_1fr_40px] gap-0 px-3 py-2 items-center text-sm">
                                 {renderEditableCell(item, "name")}
                                 {renderEditableCell(item, "unit_price")}
+                                {renderEditableCell(item, "discount")}
                                 <select
                                   className="min-h-10 w-full rounded-md border border-stitch-outline-variant bg-white px-2 py-1 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20"
                                   value={item.category}
@@ -640,21 +647,23 @@ export function AddTransactionModal({ open, onClose }: Readonly<AddTransactionMo
                         </>
                       ) : (
                         <>
-                          <div className="grid grid-cols-[1.4fr_0.55fr_0.8fr_0.85fr_1fr_40px] gap-0 bg-stitch-surface-container px-3 py-2 text-xs font-bold uppercase text-stitch-on-surface-variant">
+                          <div className="grid grid-cols-[1.35fr_0.45fr_0.75fr_0.8fr_0.75fr_1fr_40px] gap-0 bg-stitch-surface-container px-3 py-2 text-xs font-bold uppercase text-stitch-on-surface-variant">
                             <span>Tên món</span>
                             <span>SL</span>
                             <span>Đơn giá</span>
                             <span>Thành tiền</span>
+                            <span>Khuyến mãi</span>
                             <span>Danh mục</span>
                             <span />
                           </div>
                           <div className="divide-y divide-stitch-outline-variant/60">
                             {reviewItems.map((item) => (
-                              <div key={item.id} className="grid grid-cols-[1.4fr_0.55fr_0.8fr_0.85fr_1fr_40px] gap-0 px-3 py-2 items-center text-sm">
+                              <div key={item.id} className="grid grid-cols-[1.35fr_0.45fr_0.75fr_0.8fr_0.75fr_1fr_40px] gap-0 px-3 py-2 items-center text-sm">
                                 {renderEditableCell(item, "name")}
                                 {renderEditableCell(item, "quantity")}
                                 {renderEditableCell(item, "unit_price")}
-                                <span className="font-semibold tabular-nums">{formatCurrency(item.quantity * item.unit_price)}</span>
+                                <span className="font-semibold tabular-nums">{formatCurrency(lineSubtotal(item, priceMode))}</span>
+                                {renderEditableCell(item, "discount")}
                                 <select
                                   className="min-h-10 w-full rounded-md border border-stitch-outline-variant bg-white px-2 py-1 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20"
                                   value={item.category}
@@ -685,24 +694,6 @@ export function AddTransactionModal({ open, onClose }: Readonly<AddTransactionMo
                     </div>
                   </div>
 
-                  <div className="stitch-card p-3">
-                    <h3 className="font-heading font-semibold text-base mb-2">Token chưa gán</h3>
-                    <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto">
-                      {unassignedTokens.map((token) => (
-                        <button
-                          key={token.id}
-                          draggable
-                          onDragStart={() => setDraggedTokenId(token.id)}
-                          className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold text-left ${tokenColor(token.class_name)}`}
-                          title={`${token.class_name} ${(token.confidence * 100).toFixed(0)}%`}
-                        >
-                          <span className="block uppercase text-[10px] opacity-70">{token.class_name}</span>
-                          <span>{token.text || "(trong)"}</span>
-                        </button>
-                      ))}
-                      {!unassignedTokens.length && <p className="text-sm text-stitch-on-surface-variant">Tất cả token đã được gán vào bảng.</p>}
-                    </div>
-                  </div>
                 </div>
               </div>
             )}
@@ -725,7 +716,7 @@ export function AddTransactionModal({ open, onClose }: Readonly<AddTransactionMo
               ) : (
                 <button
                   onClick={() => {
-                    setAmount(String(computedTotal));
+                    setAmount(formatMoneyInput(computedTotal));
                     setCategory(dominantCategory(reviewItems));
                     setStep("form");
                   }}
@@ -761,10 +752,11 @@ export function AddTransactionModal({ open, onClose }: Readonly<AddTransactionMo
               <label className="text-sm font-semibold text-stitch-on-surface-variant uppercase tracking-wide">Số tiền (VND)</label>
               <div className="relative">
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   placeholder="0"
-                  value={computedTotal ? computedTotal : amount}
-                  onChange={(event) => setAmount(event.target.value)}
+                  value={computedTotal ? formatMoneyInput(computedTotal) : amount}
+                  onChange={(event) => setAmount(formatMoneyInput(event.target.value))}
                   className="stitch-input pr-16 text-2xl font-bold font-heading tabular-nums"
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-stitch-on-surface-variant font-medium">VND</span>
@@ -828,7 +820,7 @@ export function AddTransactionModal({ open, onClose }: Readonly<AddTransactionMo
               <button onClick={resetAndClose} className="flex-1 btn-outline">Hủy</button>
               <button
                 onClick={handleSave}
-                disabled={!(computedTotal || amount) || !category || isSaving}
+                disabled={!(computedTotal || parseMoney(amount)) || !category || isSaving}
                 className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isSaving ? (

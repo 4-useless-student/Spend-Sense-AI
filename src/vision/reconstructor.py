@@ -29,21 +29,27 @@ def reconstruct_receipt(fields: list[dict[str, Any]]) -> tuple[Receipt, list[dic
     for index, item_field in enumerate(item_fields):
         next_item_y = item_fields[index + 1]["y"] if index + 1 < len(item_fields) else None
         quantity = _best_match(item_field, quantity_fields, used_quantities, next_item_y)
-        price = _best_match(item_field, price_fields, used_prices, next_item_y)
+        price = _best_match(item_field, price_fields, used_prices, next_item_y, want_discount=False)
+        discount = _best_match(item_field, price_fields, used_prices, next_item_y, want_discount=True)
 
         if quantity:
             used_quantities.add(quantity["id"])
         if price:
             used_prices.add(price["id"])
+        if discount:
+            used_prices.add(discount["id"])
 
         name = item_field.get("text") or "Unnamed item"
         line_amount = _parse_money(price.get("text", "") if price else "") or 0.0
+        discount_amount = _parse_money(discount.get("text", "") if discount else "") or 0.0
+        total_amount = max(line_amount - discount_amount, 0.0)
 
         receipt_item = ReceiptItem(
             name=name,
             quantity=1.0,
             unit_price=line_amount,
-            total_price=line_amount,
+            discount=discount_amount,
+            total_price=total_amount,
         )
         draft_item = (
             {
@@ -51,11 +57,14 @@ def reconstruct_receipt(fields: list[dict[str, Any]]) -> tuple[Receipt, list[dic
                 "name": name,
                 "quantity": 1.0,
                 "unit_price": line_amount,
-                "total_price": line_amount,
+                "discount": discount_amount,
+                "total_price": total_amount,
                 "category": "khac",
                 "source_token_ids": {
                     "name": item_field["id"],
+                    "quantity": quantity["id"] if quantity else None,
                     "unit_price": price["id"] if price else None,
+                    "discount": discount["id"] if discount else None,
                 },
             }
         )
@@ -70,6 +79,7 @@ def reconstruct_receipt(fields: list[dict[str, Any]]) -> tuple[Receipt, list[dic
             name=name,
             quantity=1.0,
             unit_price=line_amount,
+            discount=0.0,
             total_price=line_amount,
         )
         draft_item = (
@@ -78,11 +88,14 @@ def reconstruct_receipt(fields: list[dict[str, Any]]) -> tuple[Receipt, list[dic
                 "name": name,
                 "quantity": 1.0,
                 "unit_price": line_amount,
+                "discount": 0.0,
                 "total_price": line_amount,
                 "category": "khac",
                 "source_token_ids": {
                     "name": None,
+                    "quantity": row["quantity"]["id"] if row.get("quantity") else None,
                     "unit_price": row["price"]["id"] if row.get("price") else None,
+                    "discount": None,
                 },
             }
         )
@@ -107,7 +120,8 @@ def reconstruct_receipt(fields: list[dict[str, Any]]) -> tuple[Receipt, list[dic
 
 
 def _by_class(fields: list[dict[str, Any]], class_name: str) -> list[dict[str, Any]]:
-    return [field for field in fields if field.get("class_name", "").lower() == class_name.lower()]
+    normalized = _normalize_class_name(class_name)
+    return [field for field in fields if _normalize_class_name(str(field.get("class_name", ""))) == normalized]
 
 
 def _field_position_key(field: dict[str, Any]) -> tuple[float, float]:
@@ -134,6 +148,8 @@ def _best_match(
     candidates: list[dict[str, Any]],
     used: set[str],
     next_item_y: float | None,
+    *,
+    want_discount: bool | None = None,
 ) -> dict[str, Any] | None:
     valid: list[tuple[float, dict[str, Any]]] = []
     item_y = float(item["y"])
@@ -149,6 +165,8 @@ def _best_match(
     for candidate in candidates:
         if candidate["id"] in used:
             continue
+        if want_discount is not None and _is_discount_field(candidate) != want_discount:
+            continue
         candidate_y = float(candidate["y"])
         same_band = lower_bound <= candidate_y <= upper_bound
         if not same_band:
@@ -156,7 +174,8 @@ def _best_match(
 
         y_distance = abs(candidate_y - item_y)
         x_penalty = 0 if float(candidate.get("x", 0)) > float(item.get("x", 0)) else 25
-        valid.append((y_distance + x_penalty, candidate))
+        discount_penalty = 0 if want_discount and candidate_y >= item_y else 12
+        valid.append((y_distance + x_penalty + discount_penalty, candidate))
 
     if not valid:
         return None
@@ -177,7 +196,7 @@ def _orphan_value_rows(
     frontend user drag an item-name token in or edit the row inline.
     """
     unused_quantities = [q for q in quantity_fields if q["id"] not in used_quantities]
-    unused_prices = [p for p in price_fields if p["id"] not in used_prices]
+    unused_prices = [p for p in price_fields if p["id"] not in used_prices and not _is_discount_field(p)]
     paired_price_ids: set[str] = set()
     rows: list[dict[str, dict[str, Any] | None]] = []
 
@@ -206,9 +225,31 @@ def _parse_money(text: str) -> float:
     return float(cleaned) if cleaned else 0.0
 
 
+def _is_discount_field(field: dict[str, Any]) -> bool:
+    return _parse_signed_money(str(field.get("text", ""))) < 0
+
+
+def _parse_signed_money(text: str) -> float:
+    sign = -1.0 if re.search(r"(^|[\s(:])[-−–]\s*\d", text) else 1.0
+    return sign * _parse_money(text)
+
+
 def _parse_quantity(text: str) -> float:
     cleaned = re.sub(r"[^0-9,.]", "", text).replace(",", ".")
     try:
         return float(cleaned) if cleaned else 0.0
     except ValueError:
         return 0.0
+
+
+def _normalize_class_name(class_name: str) -> str:
+    normalized = class_name.strip().lower().replace("-", "_").replace(" ", "_")
+    if normalized in {"item", "items", "name", "product", "product_name"}:
+        return "item"
+    if normalized in {"store_name", "store", "merchant"}:
+        return "store_name"
+    if normalized in {"price", "amount", "total", "line_total"}:
+        return "price"
+    if normalized in {"quantity", "qty", "sl", "so_luong"}:
+        return "quantity"
+    return normalized

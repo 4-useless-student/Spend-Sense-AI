@@ -50,11 +50,27 @@ def analyze_receipt_details(image_bytes: bytes) -> dict:
     _require_ok(detect_result, "detect")
 
     cropped: bytes = detect_result.data["cropped_bytes"]
+    raw_detections: list[dict] = detect_result.data.get("detections", [])
     detections: list[dict] = [
         detection
-        for detection in detect_result.data.get("detections", [])
+        for detection in raw_detections
         if str(detection.get("class_name", "")).strip().lower().replace("-", "_").replace(" ", "_") != "store_name"
     ]
+    log.info(
+        "pipeline.detect.done",
+        raw_detections=len(raw_detections),
+        usable_detections=len(detections),
+        classes=_class_counts(raw_detections),
+    )
+    if not detections:
+        raise PipelineError(
+            "detect",
+            ToolResult.error(
+                summary="YOLOv11 found no usable Item/price/quantity boxes",
+                error_hint="The model only detected store_name boxes or no boxes. Use a clearer receipt image or lower YOLO_CONFIDENCE.",
+                next_actions=["Retake a sharper receipt photo", "Set YOLO_CONFIDENCE=0.1", "Retry analysis"],
+            ),
+        )
 
     # 2. OCR extraction
     log.info("pipeline.ocr.start")
@@ -81,7 +97,7 @@ def analyze_receipt_details(image_bytes: bytes) -> dict:
             }
             for item in receipt.items
         ]
-    log.info("pipeline.ocr.done", merchant=receipt.merchant, items=len(receipt.items))
+    log.info("pipeline.ocr.done", merchant=receipt.merchant, items=len(receipt.items), draft_items=len(draft_items), fields=len(fields))
 
     # 3. Classify every detected item name in a single Gemma request. This is
     # non-fatal because users can still correct categories in the review UI.
@@ -146,6 +162,14 @@ def _apply_item_categories(receipt: Receipt, draft_items: list[dict], categories
 
     for item in receipt.items:
         item.category = draft_category_by_name.get(item.name, item.category or "khac")
+
+
+def _class_counts(detections: list[dict]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for detection in detections:
+        class_name = str(detection.get("class_name", "unknown"))
+        counts[class_name] = counts.get(class_name, 0) + 1
+    return counts
 
 
 def _generate_and_store(receipt: Receipt, vector: list[float], *, skip_store: bool = False) -> Insight:
