@@ -129,7 +129,8 @@
     @apply bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 animate-scale-in overflow-y-auto max-h-[90vh];
   }
   .receipt-modal-panel {
-    @apply max-w-6xl;
+    width: min(1500px, 96vw);
+    max-width: min(1500px, 96vw);
   }
 }
 

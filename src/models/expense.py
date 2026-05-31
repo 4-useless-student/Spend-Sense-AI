@@ -11,6 +11,7 @@ class ReceiptItem(BaseModel):
     name: str
     quantity: float = 1.0
     unit_price: float
+    discount: float = 0.0
     total_price: float
     category: str = "khac"
 

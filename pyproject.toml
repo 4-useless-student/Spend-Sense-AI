@@ -35,11 +35,15 @@ dependencies = [
     "alembic>=1.14.0",
     # Auth
     "passlib[bcrypt]>=1.7.4",
+    "bcrypt==4.0.1",
     "PyJWT>=2.10.0",
     "email-validator>=2.2.0",
     "huggingface-hub>=1.14.0",
     "google-auth>=2.0.0",
 ]
+
+[project.scripts]
+spendsense-backend = "main:run"
 
 [project.optional-dependencies]
 dev = [
