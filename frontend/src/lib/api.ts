@@ -334,3 +334,157 @@ export async function getStressTest(): Promise<StressTestResult> {
   });
 }
 
+
+// ---------------------------------------------------------------------------
+// Transactions, insights, goals, preferences APIs
+// ---------------------------------------------------------------------------
+
+function authHeader(): Record<string, string> {
+  const token = localStorage.getItem(TOKEN_KEY);
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export interface TransactionRecord {
+  id: string;
+  user_id: string;
+  receipt_id: string | null;
+  type: "expense" | "income";
+  amount: number;
+  currency: string;
+  category: string;
+  description: string;
+  merchant: string;
+  transaction_date: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface TransactionListResponse {
+  items: TransactionRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export async function listTransactions(limit = 200, offset = 0): Promise<TransactionRecord[]> {
+  const res = await request<TransactionListResponse>(
+    `/transactions?limit=${limit}&offset=${offset}`,
+    { headers: authHeader() },
+  );
+  return res.items;
+}
+
+export interface InsightRecord {
+  insight_id: string;
+  receipt_id: string;
+  summary: string;
+  category: string;
+  tips: string[];
+  source: "cache" | "llm";
+  similarity_score: number | null;
+}
+
+interface InsightListResponse {
+  items: InsightRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export async function listInsights(limit = 50, offset = 0): Promise<InsightRecord[]> {
+  const res = await request<InsightListResponse>(
+    `/insights?limit=${limit}&offset=${offset}`,
+    { headers: authHeader() },
+  );
+  return res.items;
+}
+
+export interface GoalRecord {
+  id: string;
+  user_id: string;
+  title: string;
+  emoji: string;
+  target_amount: number;
+  current_amount: number;
+  monthly_target: number;
+  deadline: string | null;
+  ai_note: string;
+  status: "on-track" | "at-risk" | "achieved";
+  progress_percent: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GoalInput {
+  title: string;
+  emoji?: string;
+  target_amount: number;
+  current_amount?: number;
+  monthly_target?: number;
+  deadline?: string | null;
+  ai_note?: string;
+}
+
+export async function listGoals(): Promise<GoalRecord[]> {
+  const res = await request<{ items: GoalRecord[]; total: number }>("/goals", {
+    headers: authHeader(),
+  });
+  return res.items;
+}
+
+export async function createGoal(payload: GoalInput): Promise<GoalRecord> {
+  return request<GoalRecord>("/goals", {
+    method: "POST",
+    headers: authHeader(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateGoal(goalId: string, payload: Partial<GoalInput>): Promise<GoalRecord> {
+  return request<GoalRecord>(`/goals/${goalId}`, {
+    method: "PATCH",
+    headers: authHeader(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteGoal(goalId: string): Promise<void> {
+  const response = await fetchWithFallback(`/goals/${goalId}`, {
+    method: "DELETE",
+    headers: authHeader(),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `Delete goal failed: ${response.status}`);
+  }
+}
+
+export interface PreferencesRecord {
+  user_id: string;
+  weekly_report: boolean;
+  rebalance_suggestions: boolean;
+  anomaly_alerts: boolean;
+  goal_reminders: boolean;
+  updated_at: string;
+}
+
+export type PreferenceKey =
+  | "weekly_report"
+  | "rebalance_suggestions"
+  | "anomaly_alerts"
+  | "goal_reminders";
+
+export async function getPreferences(): Promise<PreferencesRecord> {
+  return request<PreferencesRecord>("/preferences", { headers: authHeader() });
+}
+
+export async function updatePreferences(
+  payload: Partial<Record<PreferenceKey, boolean>>,
+): Promise<PreferencesRecord> {
+  return request<PreferencesRecord>("/preferences", {
+    method: "PUT",
+    headers: authHeader(),
+    body: JSON.stringify(payload),
+  });
+}
+

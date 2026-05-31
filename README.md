@@ -146,22 +146,31 @@ The orchestrator stops on `status=error` and surfaces `error_hint` to the API la
 
 ---
 
-## Dev Setup
+## How to Run
 
 ```bash
-# Backend
+# 1. Vector DB — start FIRST, keep running in its own terminal
+uv run chroma run --host localhost --port 8000 --path ./chroma_data
+#   or via Docker:
+#   docker run -p 8000:8000 -v "$PWD/chroma_data:/chroma/chroma" chromadb/chroma
+
+# 2. Backend
 uv sync
 cp .env.example .env        # fill in GEMINI_API_KEY
 uv run uvicorn main:app --reload --port 8080
 
-# Frontend
+# 3. Frontend
 cd frontend
 npm install
+cp .env.example .env         # set VITE_API_URL / VITE_GOOGLE_CLIENT_ID
 npm run dev                  # Vite on :5173
 
 # Tests
 uv run pytest
 ```
+
+ChromaDB host/port/collection are configured via `CHROMA_HOST`, `CHROMA_PORT`,
+`CHROMA_COLLECTION` in `.env` (defaults: `localhost:8000`, `receipt_insights`).
 
 ---
 
