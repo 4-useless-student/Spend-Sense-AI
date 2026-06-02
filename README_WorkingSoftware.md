@@ -20,7 +20,7 @@ SpendSense AI đã triển khai hoàn thiện hai luồng use-case chính tập 
     *   Lưu và truy vấn trong **ChromaDB**. Nếu hóa đơn tương đồng $\ge 90\%$, hệ thống trả về lời khuyên chi tiêu ngay lập tức từ bộ nhớ cache (**0 token LLM tiêu tốn**).
     *   **Feedback Loop**: Hỗ trợ 👍 (CONFIRM - giữ cache) hoặc 👎 (REJECT - xóa cache/unlearn) trực quan.
 
-### 1.2 Luồng 3: Quản Lý Danh Mục Đầu Tư & AI Stress-Test Vĩ Mô (Investment & Shock Simulation)
+### 1.2 Luồng 2: Quản Lý Danh Mục Đầu Tư & AI Stress-Test Vĩ Mô (Investment & Shock Simulation)
 *   **Hồ Sơ Rủi Ro**: Cho phép người dùng tùy chỉnh khẩu vị rủi ro (Thận trọng, Trung bình, Tăng trưởng), thiết lập tổng vốn đầu tư và mục tiêu tài chính.
 *   **Quản Lý Tài Sản Thực Tế & Trải Nghiệm Người Dùng Tối Ưu**:
     *   Kết nối trực tiếp thư viện **vnstock (KBS source)** lấy giá cổ phiếu Việt Nam (FPT, TCB, VNM,...) thời gian thực.
