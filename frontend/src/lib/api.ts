@@ -370,6 +370,11 @@ export async function getMarketPrice(symbol: string): Promise<{ symbol: string; 
   });
 }
 
+export async function getMarketQuotes(symbols: string[]): Promise<MarketSymbol[]> {
+  const params = new URLSearchParams({ symbols: symbols.join(",") });
+  return request<MarketSymbol[]>(`/market/vn-stocks?${params.toString()}`);
+}
+
 
 // ---------------------------------------------------------------------------
 // Transactions, insights, goals, preferences APIs

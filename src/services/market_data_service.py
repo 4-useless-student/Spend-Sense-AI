@@ -28,6 +28,11 @@ VN_MARKET_GROUPS = {
 }
 VN_STOCK_NAMES = {
     "VNINDEX": "VN-Index",
+    "VN30": "VN30-Index",
+    "HNXINDEX": "HNX-Index",
+    "E1VFVN30": "ETF VFMVN30",
+    "FUEVFVND": "ETF Diamond",
+    "FUESSVFL": "ETF Finlead",
     "FPT": "Công ty Cổ phần FPT",
     "HPG": "Hòa Phát",
     "VNM": "Vinamilk",

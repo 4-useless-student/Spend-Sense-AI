@@ -36,11 +36,13 @@ import {
   getStressTest,
   parseAssetWithAI,
   getMarketPrice,
+  getMarketQuotes,
 } from "@/lib/api";
 import type {
   InvestmentProfile,
   InvestmentAsset,
   StressTestResult,
+  MarketSymbol,
 } from "@/lib/api";
 
 const POPULAR_SYMBOLS = [
@@ -56,13 +58,7 @@ const POPULAR_SYMBOLS = [
   { symbol: "BNB", name: "Binance Coin", type: "crypto", color: "#F59E0B" },
   { symbol: "USDT", name: "Tether USD", type: "crypto", color: "#22C55E" },
 
-  // --- Chỉ số & Quỹ ETF (VN-Index, VN30, Diamond...) ---
-  { symbol: "VNINDEX", name: "Chỉ số VN-Index", type: "stock", color: "#707881" },
-  { symbol: "VN30", name: "Chỉ số VN30-Index", type: "stock", color: "#707881" },
-  { symbol: "HNXINDEX", name: "Chỉ số HNX-Index", type: "stock", color: "#707881" },
-  { symbol: "E1VFVN30", name: "Quỹ ETF VFMVN30", type: "stock", color: "#A78BFA" },
-  { symbol: "FUEVFVND", name: "Quỹ ETF DCVFMVN Diamond", type: "stock", color: "#A78BFA" },
-  { symbol: "FUESSVFL", name: "Quỹ ETF SSIAM VN Finlead", type: "stock", color: "#A78BFA" },
+
 
   // --- Cổ phiếu: Công nghệ & Viễn thông ---
   { symbol: "FPT", name: "Cổ phiếu FPT", type: "stock", color: "#5BAAEC" },
@@ -164,11 +160,14 @@ export function InvestmentPage() {
   const [portfolioAssets, setPortfolioAssets] = useState<InvestmentAsset[]>([]);
   const [stressResult, setStressResult] = useState<StressTestResult | null>(null);
   const [activeTab, setActiveTab] = useState<"portfolio" | "stresstest">("portfolio");
+  const [marketQuotes, setMarketQuotes] = useState<MarketSymbol[]>([]);
   
   // Loading states
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [loadingPortfolio, setLoadingPortfolio] = useState(true);
   const [loadingStress, setLoadingStress] = useState(false);
+  const [loadingQuotes, setLoadingQuotes] = useState(true);
+
   
   // Modal states
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -312,10 +311,24 @@ export function InvestmentPage() {
     }
   };
 
+  const fetchMarketQuotes = async () => {
+    try {
+      setLoadingQuotes(true);
+      const data = await getMarketQuotes(["VNINDEX", "VN30", "HNXINDEX", "E1VFVN30", "FUEVFVND", "FUESSVFL"]);
+      setMarketQuotes(data);
+    } catch (err) {
+      console.error("Error fetching market quotes:", err);
+    } finally {
+      setLoadingQuotes(false);
+    }
+  };
+
   useEffect(() => {
     fetchProfile();
     fetchPortfolio();
+    fetchMarketQuotes();
   }, []);
+
 
   // Handlers
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -448,6 +461,44 @@ export function InvestmentPage() {
 
       {activeTab === "portfolio" ? (
         <>
+          {/* Market Indices & ETFs Ticker Bar */}
+          <section className="grid grid-cols-2 md:grid-cols-6 gap-md">
+            {loadingQuotes ? (
+              <div className="col-span-2 md:col-span-6 stitch-card p-4 flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-stitch-primary-container" />
+                <span className="text-sm text-stitch-on-surface-variant">Đang tải dữ liệu chỉ số thị trường...</span>
+              </div>
+            ) : marketQuotes.length === 0 ? (
+              <div className="col-span-2 md:col-span-6 stitch-card p-4 text-center text-sm text-stitch-on-surface-variant">
+                Không lấy được dữ liệu chỉ số thị trường.
+              </div>
+            ) : (
+              marketQuotes.map((item) => {
+                const changePct = item.change_percent ?? 0;
+                const isUp = changePct >= 0;
+                const priceFormatted = item.symbol.includes("INDEX") || item.symbol === "VN30"
+                  ? (item.price !== null ? new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(item.price) : "-")
+                  : formatCurrency(item.price ?? 0);
+                
+                return (
+                  <div key={item.symbol} className="stitch-card p-3 flex flex-col justify-between hover:border-stitch-outline transition-all duration-200">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-bold text-xs text-stitch-on-surface truncate" title={item.name}>{item.name}</span>
+                      <span className="text-[10px] px-1 py-0.5 rounded bg-stitch-surface-container text-stitch-on-surface-variant font-semibold">{item.symbol}</span>
+                    </div>
+                    <div className="mt-2 flex items-baseline justify-between flex-wrap gap-x-2">
+                      <span className="font-heading text-sm font-bold text-stitch-on-surface">{priceFormatted}</span>
+                      <span className={`text-xs font-bold ${isUp ? "text-success" : "text-danger"}`}>
+                        {isUp ? "▲" : "▼"}&nbsp;
+                        {isUp ? "+" : ""}{changePct.toFixed(2)}%
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </section>
+
           {/* KPI Dashboard */}
           <section className="grid grid-cols-1 md:grid-cols-4 gap-lg">
             <div className="stitch-card p-lg">
