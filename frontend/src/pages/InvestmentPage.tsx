@@ -44,27 +44,113 @@ import type {
 } from "@/lib/api";
 
 const POPULAR_SYMBOLS = [
-  { symbol: "FPT", name: "Cổ phiếu FPT", type: "stock", color: "#5BAAEC" },
-  { symbol: "VNM", name: "Cổ phiếu Vinamilk", type: "stock", color: "#22C55E" },
-  { symbol: "TCB", name: "Cổ phiếu Techcombank", type: "stock", color: "#A78BFA" },
-  { symbol: "HPG", name: "Cổ phiếu Hòa Phát", type: "stock", color: "#707881" },
-  { symbol: "MWG", name: "Cổ phiếu Thế Giới Di Động", type: "stock", color: "#F59E0B" },
-  { symbol: "VCB", name: "Cổ phiếu Vietcombank", type: "stock", color: "#5BAAEC" },
-  { symbol: "VHM", name: "Cổ phiếu Vinhomes", type: "stock", color: "#FB923C" },
-  { symbol: "VIC", name: "Cổ phiếu Vingroup", type: "stock", color: "#A78BFA" },
-  { symbol: "CTG", name: "Cổ phiếu VietinBank", type: "stock", color: "#22C55E" },
-  { symbol: "BID", name: "Cổ phiếu BIDV", type: "stock", color: "#FB923C" },
-  { symbol: "MBB", name: "Cổ phiếu MBBank", type: "stock", color: "#5BAAEC" },
-  { symbol: "VPB", name: "Cổ phiếu VPBank", type: "stock", color: "#F59E0B" },
-  { symbol: "STB", name: "Cổ phiếu Sacombank", type: "stock", color: "#EC4899" },
-  { symbol: "ACB", name: "Cổ phiếu ACB", type: "stock", color: "#22C55E" },
-  { symbol: "SSI", name: "Cổ phiếu Chứng Khoán SSI", type: "stock", color: "#707881" },
+  // --- Vàng / Tiết kiệm ---
   { symbol: "SJC", name: "Vàng SJC", type: "gold", color: "#F59E0B" },
   { symbol: "GOLD", name: "Vàng SJC", type: "gold", color: "#F59E0B" },
+  { symbol: "SAVING", name: "Gửi Tiết Kiệm", type: "saving", color: "#EC4899" },
+
+  // --- Crypto ---
   { symbol: "BTC", name: "Bitcoin", type: "crypto", color: "#FB923C" },
   { symbol: "ETH", name: "Ethereum", type: "crypto", color: "#A78BFA" },
-  { symbol: "SAVING", name: "Gửi Tiết Kiệm", type: "saving", color: "#EC4899" },
+  { symbol: "SOL", name: "Solana", type: "crypto", color: "#5BAAEC" },
+  { symbol: "BNB", name: "Binance Coin", type: "crypto", color: "#F59E0B" },
+  { symbol: "USDT", name: "Tether USD", type: "crypto", color: "#22C55E" },
+
+  // --- Chỉ số & Quỹ ETF (VN-Index, VN30, Diamond...) ---
+  { symbol: "VNINDEX", name: "Chỉ số VN-Index", type: "stock", color: "#707881" },
+  { symbol: "VN30", name: "Chỉ số VN30-Index", type: "stock", color: "#707881" },
+  { symbol: "HNXINDEX", name: "Chỉ số HNX-Index", type: "stock", color: "#707881" },
+  { symbol: "E1VFVN30", name: "Quỹ ETF VFMVN30", type: "stock", color: "#A78BFA" },
+  { symbol: "FUEVFVND", name: "Quỹ ETF DCVFMVN Diamond", type: "stock", color: "#A78BFA" },
+  { symbol: "FUESSVFL", name: "Quỹ ETF SSIAM VN Finlead", type: "stock", color: "#A78BFA" },
+
+  // --- Cổ phiếu: Công nghệ & Viễn thông ---
+  { symbol: "FPT", name: "Cổ phiếu FPT", type: "stock", color: "#5BAAEC" },
+  { symbol: "CTR", name: "Viettel Construction", type: "stock", color: "#5BAAEC" },
+  { symbol: "VGI", name: "Viettel Global", type: "stock", color: "#5BAAEC" },
+  { symbol: "CMG", name: "Công nghệ CMC", type: "stock", color: "#5BAAEC" },
+  { symbol: "FOX", name: "FPT Telecom", type: "stock", color: "#5BAAEC" },
+
+  // --- Cổ phiếu: Ngân hàng (Banking) ---
+  { symbol: "VCB", name: "Ngân hàng Vietcombank", type: "stock", color: "#22C55E" },
+  { symbol: "BID", name: "Ngân hàng BIDV", type: "stock", color: "#22C55E" },
+  { symbol: "CTG", name: "Ngân hàng VietinBank", type: "stock", color: "#22C55E" },
+  { symbol: "TCB", name: "Ngân hàng Techcombank", type: "stock", color: "#22C55E" },
+  { symbol: "MBB", name: "Ngân hàng Quân Đội (MB)", type: "stock", color: "#22C55E" },
+  { symbol: "VPB", name: "Ngân hàng VPBank", type: "stock", color: "#22C55E" },
+  { symbol: "ACB", name: "Ngân hàng Á Châu (ACB)", type: "stock", color: "#22C55E" },
+  { symbol: "STB", name: "Ngân hàng Sacombank", type: "stock", color: "#22C55E" },
+  { symbol: "HDB", name: "Ngân hàng HDBank", type: "stock", color: "#22C55E" },
+  { symbol: "VIB", name: "Ngân hàng VIB", type: "stock", color: "#22C55E" },
+  { symbol: "TPB", name: "Ngân hàng TPBank", type: "stock", color: "#22C55E" },
+  { symbol: "SHB", name: "Ngân hàng SHB", type: "stock", color: "#22C55E" },
+  { symbol: "LPB", name: "Ngân hàng LPBank", type: "stock", color: "#22C55E" },
+  { symbol: "MSB", name: "Ngân hàng MSB", type: "stock", color: "#22C55E" },
+  { symbol: "OCB", name: "Ngân hàng OCB", type: "stock", color: "#22C55E" },
+  { symbol: "SSB", name: "Ngân hàng SeABank", type: "stock", color: "#22C55E" },
+
+  // --- Cổ phiếu: Chứng khoán (Securities) ---
+  { symbol: "SSI", name: "Chứng khoán SSI", type: "stock", color: "#FB923C" },
+  { symbol: "VND", name: "Chứng khoán VNDIRECT", type: "stock", color: "#FB923C" },
+  { symbol: "VCI", name: "Chứng khoán Vietcap", type: "stock", color: "#FB923C" },
+  { symbol: "HCM", name: "Chứng khoán TP.HCM (HSC)", type: "stock", color: "#FB923C" },
+  { symbol: "MBS", name: "Chứng khoán MB", type: "stock", color: "#FB923C" },
+  { symbol: "SHS", name: "Chứng khoán Sài Gòn - Hà Nội", type: "stock", color: "#FB923C" },
+  { symbol: "FTS", name: "Chứng khoán FPT", type: "stock", color: "#FB923C" },
+  { symbol: "BSI", name: "Chứng khoán BIDV (BSC)", type: "stock", color: "#FB923C" },
+  { symbol: "CTS", name: "Chứng khoán Vietinbank (CTS)", type: "stock", color: "#FB923C" },
+
+  // --- Cổ phiếu: Bất động sản, Xây dựng & KCN ---
+  { symbol: "VHM", name: "Cổ phiếu Vinhomes", type: "stock", color: "#A78BFA" },
+  { symbol: "VIC", name: "Cổ phiếu Vingroup", type: "stock", color: "#A78BFA" },
+  { symbol: "VRE", name: "Cổ phiếu Vincom Retail", type: "stock", color: "#A78BFA" },
+  { symbol: "NVL", name: "Cổ phiếu Novaland", type: "stock", color: "#A78BFA" },
+  { symbol: "PDR", name: "Bất động sản Phát Đạt", type: "stock", color: "#A78BFA" },
+  { symbol: "DIG", name: "Tổng Cty Đầu tư Phát triển Xây dựng (DIC)", type: "stock", color: "#A78BFA" },
+  { symbol: "DXG", name: "Tập đoàn Đất Xanh", type: "stock", color: "#A78BFA" },
+  { symbol: "KBC", name: "Đô thị Kinh Bắc", type: "stock", color: "#A78BFA" },
+  { symbol: "NLG", name: "Đầu tư Nam Long", type: "stock", color: "#A78BFA" },
+  { symbol: "KDH", name: "Nhà Khang Điền", type: "stock", color: "#A78BFA" },
+  { symbol: "BCM", name: "Đầu tư và Phát triển Công nghiệp (Becamex)", type: "stock", color: "#A78BFA" },
+  { symbol: "VGC", name: "Tổng Cty VIGLACERA", type: "stock", color: "#A78BFA" },
+  { symbol: "REE", name: "Cơ Điện Lạnh (REE)", type: "stock", color: "#A78BFA" },
+
+  // --- Cổ phiếu: Thép & Vật liệu (Steel & Materials) ---
+  { symbol: "HPG", name: "Cổ phiếu Hòa Phát", type: "stock", color: "#707881" },
+  { symbol: "HSG", name: "Tập đoàn Hoa Sen", type: "stock", color: "#707881" },
+  { symbol: "NKG", name: "Thép Nam Kim", type: "stock", color: "#707881" },
+
+  // --- Cổ phiếu: Bán lẻ & Hàng tiêu dùng (Retail & Consumer) ---
+  { symbol: "MWG", name: "Thế Giới Di Động", type: "stock", color: "#F59E0B" },
+  { symbol: "FRT", name: "Bán lẻ FPT (FPT Shop)", type: "stock", color: "#F59E0B" },
+  { symbol: "DGW", name: "Thế Giới Số (Digiworld)", type: "stock", color: "#F59E0B" },
+  { symbol: "PNJ", name: "Vàng bạc Đá quý Phú Nhuận", type: "stock", color: "#F59E0B" },
+  { symbol: "MSN", name: "Tập đoàn Masan", type: "stock", color: "#F59E0B" },
+  { symbol: "VNM", name: "Cổ phiếu Vinamilk", type: "stock", color: "#F59E0B" },
+  { symbol: "SAB", name: "Bia Rượu Sabeco", type: "stock", color: "#F59E0B" },
+
+  // --- Cổ phiếu: Dầu khí & Năng lượng (Energy / Oil & Gas) ---
+  { symbol: "GAS", name: "Tổng Cty Khí Việt Nam (PV Gas)", type: "stock", color: "#EC4899" },
+  { symbol: "PLX", name: "Tập đoàn Xăng dầu Petrolimex", type: "stock", color: "#EC4899" },
+  { symbol: "POW", name: "Điện lực Dầu khí Việt Nam (PV Power)", type: "stock", color: "#EC4899" },
+  { symbol: "PVD", name: "Khoan Dầu khí PVD", type: "stock", color: "#EC4899" },
+  { symbol: "PVS", name: "Dịch vụ Kỹ thuật Dầu khí PVS", type: "stock", color: "#EC4899" },
+  { symbol: "PVT", name: "Vận tải Dầu khí PVT", type: "stock", color: "#EC4899" },
+
+  // --- Cổ phiếu: Hóa chất & Nông nghiệp ---
+  { symbol: "DGC", name: "Hóa chất Đức Giang", type: "stock", color: "#10B981" },
+  { symbol: "DPM", name: "Phân bón Hóa chất Dầu khí (Đạm Phú Mỹ)", type: "stock", color: "#10B981" },
+  { symbol: "DCM", name: "Phân bón Dầu khí Cà Mau (Đạm Cà Mau)", type: "stock", color: "#10B981" },
+  { symbol: "HAG", name: "Hoàng Anh Gia Lai", type: "stock", color: "#10B981" },
+  { symbol: "DBC", name: "Tập đoàn Dabaco", type: "stock", color: "#10B981" },
+
+  // --- Cổ phiếu: Vận tải & Hàng không ---
+  { symbol: "VJC", name: "Hàng không Vietjet Air", type: "stock", color: "#06B6D4" },
+  { symbol: "HVN", name: "Tổng Cty Hàng không Việt Nam (VNA)", type: "stock", color: "#06B6D4" },
+  { symbol: "GMD", name: "Cảng & Logistics Gemadept", type: "stock", color: "#06B6D4" },
+  { symbol: "HAH", name: "Vận tải và Xếp dỡ Hải An", type: "stock", color: "#06B6D4" },
 ];
+
 
 const riskLabels = { conservative: "Thận trọng", moderate: "Trung bình", aggressive: "Tăng trưởng" };
 const riskClasses = {
