@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Plus, Sparkles, CheckCircle2, AlertTriangle, Clock, Trash2, X } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, formatNumberToVietnameseWords } from "@/lib/utils";
 import {
   createGoal,
   deleteGoal as apiDeleteGoal,
@@ -182,6 +182,11 @@ function CreateGoalModal({
                 className="stitch-input"
                 min={0}
               />
+              {(form.target_amount ?? 0) > 0 && (
+                <span className="text-[10px] text-stitch-primary-container block mt-0.5 leading-tight">
+                  Định dạng: <strong>{formatCurrency(form.target_amount ?? 0)}</strong> {formatNumberToVietnameseWords(form.target_amount ?? 0) && `(${formatNumberToVietnameseWords(form.target_amount ?? 0)})`}
+                </span>
+              )}
             </div>
             <div className="space-y-1.5">
               <label className="text-label-caps text-stitch-on-surface-variant">Đã tiết kiệm</label>
@@ -192,6 +197,11 @@ function CreateGoalModal({
                 className="stitch-input"
                 min={0}
               />
+              {(form.current_amount ?? 0) > 0 && (
+                <span className="text-[10px] text-stitch-primary-container block mt-0.5 leading-tight">
+                  Định dạng: <strong>{formatCurrency(form.current_amount ?? 0)}</strong> {formatNumberToVietnameseWords(form.current_amount ?? 0) && `(${formatNumberToVietnameseWords(form.current_amount ?? 0)})`}
+                </span>
+              )}
             </div>
             <div className="space-y-1.5">
               <label className="text-label-caps text-stitch-on-surface-variant">Tiết kiệm/tháng</label>
@@ -202,6 +212,11 @@ function CreateGoalModal({
                 className="stitch-input"
                 min={0}
               />
+              {(form.monthly_target ?? 0) > 0 && (
+                <span className="text-[10px] text-stitch-primary-container block mt-0.5 leading-tight">
+                  Định dạng: <strong>{formatCurrency(form.monthly_target ?? 0)}</strong> {formatNumberToVietnameseWords(form.monthly_target ?? 0) && `(${formatNumberToVietnameseWords(form.monthly_target ?? 0)})`}
+                </span>
+              )}
             </div>
             <div className="space-y-1.5">
               <label className="text-label-caps text-stitch-on-surface-variant">Hạn chót</label>

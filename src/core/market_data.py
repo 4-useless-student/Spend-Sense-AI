@@ -1,4 +1,5 @@
 import math
+from typing import Any
 
 import httpx
 import structlog
@@ -168,6 +169,48 @@ def fetch_stock_prices(symbols: list[str]) -> dict[str, float]:
         for s in symbols:
             prices[s.upper()] = DEFAULT_STOCK_PRICES.get(s.upper(), 50000.0)
             
+    return prices
+
+
+def fetch_stock_price_details(symbols: list[str]) -> dict[str, dict[str, Any]]:
+    """Fetch detailed stock price info with source tracking."""
+    if not symbols:
+        return {}
+    prices: dict[str, dict[str, Any]] = {}
+    try:
+        import vnstock
+
+        clean_symbols = [s.strip().upper() for s in symbols if s.strip()]
+        if not clean_symbols:
+            return {}
+
+        trading = vnstock.Trading(source='kbs')
+        df = trading.price_board(symbols_list=clean_symbols)
+
+        if df is not None and not df.empty:
+            records = df.to_dict(orient='records')
+            for row in records:
+                sym = str(row.get("symbol", "")).upper()
+                price = _coalesce_price(
+                    row.get("close_price"),
+                    row.get("reference_price"),
+                    row.get("open_price"),
+                )
+                if price is not None:
+                    prices[sym] = {"price": price, "source": "vnstock"}
+
+        for s in clean_symbols:
+            if s not in prices:
+                fallback = DEFAULT_STOCK_PRICES.get(s)
+                prices[s] = {"price": fallback, "source": "fallback" if fallback is not None else "unavailable"}
+
+    except Exception as exc:
+        log.warning("market_data.fetch_stock_details.failed", error=str(exc))
+        for s in symbols:
+            sym = s.upper()
+            fallback = DEFAULT_STOCK_PRICES.get(sym)
+            prices[sym] = {"price": fallback, "source": "fallback" if fallback is not None else "unavailable"}
+
     return prices
 
 

@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line,
 } from "recharts";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatNumberToVietnameseWords } from "@/lib/utils";
 import { Edit3, Filter, Loader2, X } from "lucide-react";
 import { listTransactions, updateTransaction, type TransactionRecord } from "@/lib/api";
 import { useApiData } from "@/hooks/useApiData";
@@ -143,6 +143,11 @@ function EditTransactionModal({
                 onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
                 className="stitch-input"
               />
+              {Number(form.amount) > 0 && (
+                <span className="text-[10px] text-stitch-primary-container block mt-0.5 leading-tight">
+                  Định dạng: <strong>{formatCurrency(Number(form.amount))}</strong> {formatNumberToVietnameseWords(Number(form.amount)) && `(${formatNumberToVietnameseWords(Number(form.amount))})`}
+                </span>
+              )}
             </label>
             <label className="space-y-1.5">
               <span className="text-label-caps text-stitch-on-surface-variant">Ngày</span>

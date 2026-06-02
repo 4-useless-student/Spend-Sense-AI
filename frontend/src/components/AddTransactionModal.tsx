@@ -18,7 +18,7 @@ import {
   type DetectedField,
   type ReceiptDraftItem,
 } from "@/lib/api";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatNumberToVietnameseWords } from "@/lib/utils";
 
 interface AddTransactionModalProps {
   open: boolean;
@@ -801,6 +801,14 @@ export function AddTransactionModal({ open, onClose }: Readonly<AddTransactionMo
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-stitch-on-surface-variant font-medium">VND</span>
               </div>
+              {(() => {
+                const numericAmount = computedTotal || parseMoney(amount);
+                return numericAmount > 0 ? (
+                  <span className="text-[11px] text-stitch-primary-container block mt-1 leading-tight">
+                    Định dạng: <strong>{formatCurrency(numericAmount)}</strong> {formatNumberToVietnameseWords(numericAmount) && `(${formatNumberToVietnameseWords(numericAmount)})`}
+                  </span>
+                ) : null;
+              })()}
               {reviewItems.length > 0 && (
                 <p className="text-xs text-stitch-on-surface-variant">
                   Số tiền được tính từ bảng item và sẽ cập nhật theo chế độ đơn giá hoặc thành tiền bạn chọn.

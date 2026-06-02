@@ -95,18 +95,31 @@ export interface CreateTransactionPayload {
 
 export type UpdateTransactionPayload = Partial<Omit<CreateTransactionPayload, "receipt_items">>;
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  options?: { timeoutMs?: number; timeoutMessage?: string }
+): Promise<T> {
   const response = await fetchWithFallback(path, {
     ...init,
     headers: {
       "Content-Type": "application/json",
       ...init?.headers,
     },
-  });
+  }, options);
 
   if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `Request failed: ${response.status}`);
+    const text = await response.text();
+    let message = text;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed.detail === "string") {
+        message = parsed.detail;
+      }
+    } catch {
+      // Keep raw text if not JSON
+    }
+    throw new Error(message || `Request failed: ${response.status}`);
   }
 
   return response.json() as Promise<T>;
@@ -253,33 +266,47 @@ export interface InvestmentAsset {
   updated_at: string;
 }
 
-export interface ScenarioResult {
-  id: string;
-  name: string;
-  simulated_value: number;
-  loss_value: number;
-  loss_percent: number;
-}
-
-export interface HedgingStrategy {
-  asset: string;
+export interface RebalanceSuggestion {
+  asset_class: string;
+  current_weight: number;
+  target_weight: number;
+  difference_value: number;
   action: string;
-  amount: number;
   reasoning: string;
 }
 
-export interface StressTestResult {
+export interface SavingChallenge {
+  id: string;
+  title: string;
+  description: string;
+  target_amount: number;
+  current_amount: number;
+  status: string;
+  badge: string;
+}
+
+export interface WealthProjectionPoint {
+  year: number;
+  value: number;
+}
+
+export interface RoboAdvisorData {
   portfolio_value: number;
   total_capital: number;
   idle_cash: number;
-  vulnerability_score: number;
+  monthly_income: number;
+  monthly_expenses: number;
+  savings_rate: number;
+  financial_freedom_number: number;
+  years_to_financial_freedom: number;
+  risk_appetite: string;
   diversification_score: number;
-  worst_scenario: string;
-  worst_loss_percent: number;
-  scenarios: ScenarioResult[];
-  assets: InvestmentAsset[];
+  target_allocation: Record<string, number>;
+  actual_allocation: Record<string, number>;
+  rebalance_suggestions: RebalanceSuggestion[];
   overall_analysis: string;
-  hedging_strategies: HedgingStrategy[];
+  challenges: SavingChallenge[];
+  projection_points: WealthProjectionPoint[];
 }
 
 export async function getInvestmentProfile(): Promise<InvestmentProfile> {
@@ -337,10 +364,13 @@ export async function deleteAsset(assetId: string): Promise<void> {
   }
 }
 
-export async function getStressTest(): Promise<StressTestResult> {
+export async function getRoboAdvisorData(): Promise<RoboAdvisorData> {
   const token = localStorage.getItem(TOKEN_KEY);
-  return request<StressTestResult>("/investment/stress-test", {
+  return request<RoboAdvisorData>("/investment/robo-advisor", {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
+  }, {
+    timeoutMs: 60000,
+    timeoutMessage: "Không thể nhận phản hồi từ Cố vấn AI trong 60 giây. Vui lòng thử lại.",
   });
 }
 
@@ -359,6 +389,9 @@ export async function parseAssetWithAI(text: string): Promise<ParsedAsset> {
     method: "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: JSON.stringify({ text }),
+  }, {
+    timeoutMs: 60000,
+    timeoutMessage: "Trợ lý AI phân tích quá 60 giây. Vui lòng thử lại.",
   });
 }
 

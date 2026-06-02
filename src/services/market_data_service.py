@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from datetime import datetime
 from typing import Any
@@ -130,7 +131,8 @@ async def _fetch_fireant_quote(symbol: str) -> dict[str, Any]:
 
 
 async def _fetch_vndirect_quote(symbol: str) -> dict[str, Any]:
-    url = "https://finfo-api.vndirect.com.vn/v4/stock_prices"
+    is_index = symbol in ("VNINDEX", "VN30", "HNXINDEX")
+    url = "https://finfo-api.vndirect.com.vn/v4/index_quotes" if is_index else "https://finfo-api.vndirect.com.vn/v4/stock_prices"
     params = {"sort": "date:desc", "size": 1, "q": f"code:{symbol}"}
     try:
         async with httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "SpendSenseAI/1.0"}) as client:
@@ -154,6 +156,64 @@ async def _fetch_vnstock_quote(symbol: str) -> dict[str, Any]:
     return _error_quote(symbol, "Không lấy được dữ liệu từ vnstock.")
 
 
+async def _fetch_vnstock_index_quote(symbol: str) -> dict[str, Any]:
+    try:
+        import vnstock  # type: ignore[import-not-found]
+        # Since vnstock fetches index data synchronously via HTTP, wrap in to_thread
+        df = await asyncio.to_thread(lambda: vnstock.Market().index(symbol=symbol).ohlcv(count=2))
+        if df is None or df.empty:
+            return _error_quote(symbol, "vnstock index_quotes returned empty data.")
+        
+        # Sort to ensure chronological order
+        df = df.sort_values(by="time")
+        
+        if len(df) >= 2:
+            row_prev = df.iloc[-2]
+            row_curr = df.iloc[-1]
+            price = float(row_curr["close"])
+            prev_close = float(row_prev["close"])
+            change = price - prev_close
+            change_percent = (change / prev_close) * 100
+            volume = float(row_curr["volume"]) if "volume" in row_curr else None
+            updated_at = row_curr["time"]
+        else:
+            row_curr = df.iloc[-1]
+            price = float(row_curr["close"])
+            open_price = float(row_curr["open"])
+            change = price - open_price
+            change_percent = (change / open_price) * 100 if open_price else 0.0
+            volume = float(row_curr["volume"]) if "volume" in row_curr else None
+            updated_at = row_curr["time"]
+
+        if hasattr(updated_at, "to_pydatetime"):
+            updated_at = updated_at.to_pydatetime()
+        elif isinstance(updated_at, str):
+            try:
+                updated_at = datetime.fromisoformat(updated_at)
+            except ValueError:
+                updated_at = datetime.utcnow()
+        elif not isinstance(updated_at, datetime):
+            updated_at = datetime.utcnow()
+
+        return {
+            "symbol": symbol,
+            "name": _symbol_name(symbol),
+            "market": "Vietnam",
+            "asset_class": "index",
+            "price": price,
+            "change": change,
+            "change_percent": change_percent,
+            "volume": volume,
+            "updated_at": updated_at,
+            "currency": "POINT",
+            "source": "vnstock_index",
+            "error": None,
+        }
+    except Exception as exc:
+        log.warning("market_data.vnstock_index.failed", symbol=symbol, error=str(exc))
+        return _error_quote(symbol, f"Lỗi gọi vnstock index API: {str(exc)}")
+
+
 async def _fetch_vnstock_quotes(symbols: list[str]) -> list[dict[str, Any]]:
     try:
         import vnstock  # type: ignore[import-not-found]
@@ -166,23 +226,60 @@ async def _fetch_vnstock_quotes(symbols: list[str]) -> list[dict[str, Any]]:
             for symbol in symbols
         ]
 
-    try:
-        if hasattr(vnstock, "Trading"):
-            trading = vnstock.Trading(source="kbs")
-            frame = trading.price_board(symbols_list=symbols)
-            records = _dataframe_records(frame)
-            quotes = _quotes_from_records(symbols, records, "vnstock")
-            if any(quote.get("price") is not None for quote in quotes):
-                return quotes
-    except Exception as exc:
-        log.warning("market_data.vnstock.trading.failed", symbols=symbols[:10], error=str(exc))
+    # Split symbols into indices and stock symbols
+    index_symbols = {"VNINDEX", "VN30", "HNXINDEX"}
+    
+    # We will fetch index quotes concurrently
+    index_tasks = {}
+    for symbol in symbols:
+        if symbol in index_symbols:
+            index_tasks[symbol] = asyncio.create_task(_fetch_vnstock_index_quote(symbol))
+            
+    # Batch fetch stocks
+    stock_symbols = [s for s in symbols if s not in index_symbols]
+    stock_quotes_by_symbol = {}
+    if stock_symbols:
+        try:
+            if hasattr(vnstock, "Trading"):
+                trading = vnstock.Trading(source="kbs")
+                # Wrap the synchronous price_board call in to_thread
+                frame = await asyncio.to_thread(lambda: trading.price_board(symbols_list=stock_symbols))
+                records = _dataframe_records(frame)
+                quotes = _quotes_from_records(stock_symbols, records, "vnstock")
+                for q in quotes:
+                    stock_quotes_by_symbol[q["symbol"]] = q
+        except Exception as exc:
+            log.warning("market_data.vnstock.trading.failed", symbols=stock_symbols[:10], error=str(exc))
+            
+        # Fill in errors for any missing stocks
+        for symbol in stock_symbols:
+            if symbol not in stock_quotes_by_symbol:
+                stock_quotes_by_symbol[symbol] = _error_quote(symbol, "Không lấy được dữ liệu từ vnstock.")
 
-    return [_error_quote(symbol, "Không lấy được dữ liệu từ vnstock.") for symbol in symbols]
+    # Await index tasks
+    index_quotes_by_symbol = {}
+    if index_tasks:
+        results = await asyncio.gather(*index_tasks.values(), return_exceptions=True)
+        for symbol, result in zip(index_tasks.keys(), results):
+            if isinstance(result, Exception):
+                index_quotes_by_symbol[symbol] = _error_quote(symbol, f"Lỗi tác vụ vnstock index: {str(result)}")
+            else:
+                index_quotes_by_symbol[symbol] = result
+
+    # Reassemble in original order
+    final_quotes = []
+    for symbol in symbols:
+        if symbol in index_symbols:
+            final_quotes.append(index_quotes_by_symbol[symbol])
+        else:
+            final_quotes.append(stock_quotes_by_symbol[symbol])
+            
+    return final_quotes
 
 
 def _quote_from_payload(symbol: str, payload: Any, source: str) -> dict[str, Any]:
     record = _first_record(payload)
-    price = _pick_number(record, ["price", "lastPrice", "matchPrice", "close", "closePrice", "currentPrice", "last", "c"])
+    price = _pick_number(record, ["price", "lastPrice", "matchPrice", "close", "closePrice", "currentPrice", "last", "c", "indexValue"])
     reference = _pick_number(record, ["basicPrice", "referencePrice", "refPrice", "priorClose"])
     change = _pick_number(record, ["change", "priceChange", "changeValue", "adChange"])
     if change is None and price is not None and reference is not None:

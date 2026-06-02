@@ -489,3 +489,54 @@ class PreferencesResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+# ---------------------------------------------------------------------------
+# Robo-Advisor & Wealth Planner schemas
+# ---------------------------------------------------------------------------
+
+class RebalanceSuggestion(BaseModel):
+    asset_class: str  # stock, gold, saving, crypto, cash
+    current_weight: float
+    target_weight: float
+    difference_value: float
+    action: str  # Mua thêm, Bán bớt, Giữ nguyên
+    reasoning: str
+
+
+class SavingChallenge(BaseModel):
+    id: str
+    title: str
+    description: str
+    target_amount: float
+    current_amount: float
+    status: str  # active, joined, completed
+    badge: str
+
+
+class RoboAdvisorResponse(BaseModel):
+    portfolio_value: float
+    total_capital: float
+    idle_cash: float
+    monthly_income: float
+    monthly_expenses: float
+    savings_rate: float
+    financial_freedom_number: float
+    years_to_financial_freedom: float
+    risk_appetite: str
+    diversification_score: float
+    target_allocation: dict[str, float]
+    actual_allocation: dict[str, float]
+    rebalance_suggestions: list[RebalanceSuggestion]
+    overall_analysis: str
+    challenges: list[SavingChallenge]
+
+
+class JoinChallengeRequest(BaseModel):
+    challenge_id: str
+
+
+class ChallengeProgressRequest(BaseModel):
+    challenge_id: str
+    amount: float
+
+

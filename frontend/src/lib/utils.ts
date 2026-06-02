@@ -37,3 +37,34 @@ export function formatShortDate(date: Date | string): string {
     month: "short",
   }).format(new Date(date));
 }
+
+export function formatNumberToVietnameseWords(num: number): string {
+  if (isNaN(num) || num <= 0) return "";
+  
+  const cleanNum = Math.round(num);
+  const bill = Math.floor(cleanNum / 1000000000);
+  const remainderBill = cleanNum % 1000000000;
+  const million = Math.floor(remainderBill / 1000000);
+  const remainderMillion = remainderBill % 1000000;
+  const thousand = Math.floor(remainderMillion / 1000);
+  const remainderThousand = remainderMillion % 1000;
+
+  const parts: string[] = [];
+  if (bill > 0) {
+    parts.push(`${bill} tỷ`);
+  }
+  if (million > 0) {
+    parts.push(`${million} triệu`);
+  }
+  if (thousand > 0) {
+    parts.push(`${thousand} nghìn`);
+  }
+  if (remainderThousand > 0) {
+    parts.push(`${remainderThousand}`);
+  }
+
+  if (parts.length === 0) {
+    return "0 đồng";
+  }
+  return parts.join(" ") + " đồng";
+}

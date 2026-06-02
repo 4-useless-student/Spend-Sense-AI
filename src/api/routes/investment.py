@@ -9,7 +9,7 @@ from src.api.schemas import (
     InvestmentProfileResponse,
     InvestmentAssetRequest,
     InvestmentAssetResponse,
-    StressTestResponse,
+    RoboAdvisorResponse,
     ParseAssetRequest,
     ParseAssetResponse,
 )
@@ -17,7 +17,7 @@ from src.auth.dependencies import get_current_user
 from src.db.base import get_db
 from src.db.models import User, InvestmentProfile, InvestmentAsset
 from src.core.market_data import get_market_prices
-from src.core.stress_tester import run_portfolio_stress_test
+from src.services.robo_advisor import get_robo_advisor_data
 from src.llm.gemini_client import _call_gemini
 
 router = APIRouter(prefix="/investment", tags=["investment"])
@@ -40,7 +40,7 @@ async def get_profile(
             user_id=current_user.id,
             risk_appetite="moderate",
             capital=0.0,
-            goal="Tự do tài chính",
+            goal="2000000000",
         )
         db.add(profile)
         await db.commit()
@@ -269,12 +269,12 @@ async def delete_portfolio_asset(
     return None
 
 
-@router.get("/stress-test", response_model=StressTestResponse)
-async def get_stress_test(
+@router.get("/robo-advisor", response_model=RoboAdvisorResponse)
+async def get_robo_advisor(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> StressTestResponse:
-    """Run simulated market shock scenarios and generate Gemini recommendations."""
+) -> RoboAdvisorResponse:
+    """Run simulated market allocation advisor and projection."""
     # 1. Fetch profile
     profile_stmt = select(InvestmentProfile).where(InvestmentProfile.user_id == current_user.id)
     profile_res = await db.execute(profile_stmt)
@@ -285,7 +285,7 @@ async def get_stress_test(
             user_id=current_user.id,
             risk_appetite="moderate",
             capital=0.0,
-            goal="Tự do tài chính",
+            goal="2000000000",
         )
         db.add(profile)
         await db.commit()
@@ -322,8 +322,8 @@ async def get_stress_test(
         for asset in assets
     ]
     
-    # 4. Perform stress test
-    results = run_portfolio_stress_test(profile_dict, assets_dicts, market_prices)
+    # 4. Perform robo advisor analysis
+    results = await get_robo_advisor_data(db, current_user.id, profile_dict, assets_dicts, market_prices)
     return results
 
 
@@ -403,14 +403,15 @@ async def parse_asset(
             color=color,
         )
     except Exception as exc:
-        # Fallback empty structure in case of LLM failure
-        return ParseAssetResponse(
-            symbol="",
-            name="",
-            type="stock",
-            quantity=1.0,
-            purchase_price=0.0,
-            color="#5BAAEC"
+        err_msg = str(exc)
+        if "quota" in err_msg.lower() or "limit" in err_msg.lower() or "429" in err_msg:
+            raise HTTPException(
+                status_code=429,
+                detail="Giới hạn lượt gọi AI (Rate Limit/Quota Exceeded). Vui lòng đợi 30 giây rồi thử lại hoặc nhập thủ công."
+            )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi AI phân tích tài sản: {err_msg}"
         )
 
 
