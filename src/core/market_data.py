@@ -141,7 +141,15 @@ def fetch_stock_prices(symbols: list[str]) -> dict[str, float]:
         if not clean_symbols:
             return {}
             
-        trading = vnstock.Trading(source='KBS')
+        trading = None
+        for src_candidate in ['KBS', 'tcbs', 'VCI', 'ssi']:
+            try:
+                trading = vnstock.Trading(source=src_candidate)
+                break
+            except Exception:
+                continue
+        if trading is None:
+            raise ValueError("Không thể khởi tạo vnstock.Trading.")
         df = trading.price_board(symbols_list=clean_symbols)
         
         # Parse the dataframe to dict
@@ -184,7 +192,15 @@ def fetch_stock_price_details(symbols: list[str]) -> dict[str, dict[str, Any]]:
         if not clean_symbols:
             return {}
 
-        trading = vnstock.Trading(source='KBS')
+        trading = None
+        for src_candidate in ['KBS', 'tcbs', 'VCI', 'ssi']:
+            try:
+                trading = vnstock.Trading(source=src_candidate)
+                break
+            except Exception:
+                continue
+        if trading is None:
+            raise ValueError("Không thể khởi tạo vnstock.Trading.")
         df = trading.price_board(symbols_list=clean_symbols)
 
         if df is not None and not df.empty:

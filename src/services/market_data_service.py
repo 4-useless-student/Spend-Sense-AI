@@ -254,7 +254,15 @@ async def _fetch_vnstock_quotes(symbols: list[str]) -> list[dict[str, Any]]:
     if stock_symbols:
         try:
             if hasattr(vnstock, "Trading"):
-                trading = vnstock.Trading(source="KBS")
+                trading = None
+                for src_candidate in ['KBS', 'tcbs', 'VCI', 'ssi']:
+                    try:
+                        trading = vnstock.Trading(source=src_candidate)
+                        break
+                    except Exception:
+                        continue
+                if trading is None:
+                    raise ValueError("Không thể khởi tạo vnstock.Trading.")
                 # Wrap the synchronous price_board call in to_thread
                 frame = await asyncio.to_thread(lambda: trading.price_board(symbols_list=stock_symbols))
                 records = _dataframe_records(frame)
