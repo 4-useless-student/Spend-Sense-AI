@@ -515,32 +515,64 @@ export function InvestmentPage() {
 
   const renderFormattedAnalysis = (text: string) => {
     if (!text) return null;
-    let cleanText = text.replace(/\\"/g, '"');
-    cleanText = cleanText.replace(/(\S)\s+\*\s+(\w)/g, "$1\n* $2");
+    
+    // Replace literal escaped newlines (\n as characters) with actual newlines
+    let cleanText = text.replace(/\\n/g, "\n").replace(/\\"/g, '"');
+    
+    // Simple bold formatter (**text** -> <strong>text</strong>)
+    const formatLineText = (lineText: string) => {
+      const parts = lineText.split(/\*\*([^*]+)\*\*/g);
+      return parts.map((part, i) => 
+        i % 2 === 1 ? (
+          <strong key={i} className="font-bold text-stitch-on-surface">{part}</strong>
+        ) : (
+          part
+        )
+      );
+    };
+
     const lines = cleanText.split("\n").map(l => l.trim()).filter(l => l !== "");
+    let isSubList = false;
     
     return lines.map((line, idx) => {
-      const isBullet = line.startsWith("- ") || line.startsWith("* ");
-      let content = line;
-      if (isBullet) {
-        content = "• " + line.replace(/^[\*\-]\s*/, "");
-      }
-      
-      if (isBullet && content.includes(":")) {
-        const colonIdx = content.indexOf(":");
-        const boldPart = content.slice(0, colonIdx + 1);
-        const normalPart = content.slice(colonIdx + 1);
+      // 1. Detect numbered headers (e.g., "1. Đánh giá...")
+      if (/^\d+\./.test(line)) {
+        isSubList = false;
         return (
-          <p key={idx} className="pl-4 leading-relaxed mt-1">
-            <strong className="text-stitch-on-surface font-semibold">{boldPart}</strong>
-            {normalPart}
-          </p>
+          <h4 key={idx} className="font-bold text-stitch-on-surface text-sm mt-4 mb-2">
+            {formatLineText(line)}
+          </h4>
         );
       }
       
+      // 2. Detect bullet points
+      const isBullet = line.startsWith("- ") || line.startsWith("* ") || line.startsWith("• ");
+      if (isBullet) {
+        const cleanContent = line.replace(/^[\*\-•]\s*/, "");
+        
+        // If it ends with a colon, it's a sub-list header (e.g., "Cách tối ưu:")
+        const isHeaderBullet = cleanContent.endsWith(":");
+        
+        const currentIndent = isSubList && !isHeaderBullet ? "pl-8" : "pl-4";
+        const bulletSymbol = isSubList && !isHeaderBullet ? "○ " : "• ";
+        
+        if (isHeaderBullet) {
+          isSubList = true;
+        }
+        
+        return (
+          <div key={idx} className={`${currentIndent} leading-relaxed mt-1 flex items-start gap-1 text-sm`}>
+            <span className="text-stitch-on-surface-variant flex-shrink-0">{bulletSymbol}</span>
+            <span>{formatLineText(cleanContent)}</span>
+          </div>
+        );
+      }
+      
+      // 3. Regular paragraph
+      isSubList = false;
       return (
-        <p key={idx} className={isBullet ? "pl-4 leading-relaxed mt-1" : "leading-relaxed"}>
-          {content}
+        <p key={idx} className="leading-relaxed mt-2 text-sm">
+          {formatLineText(line)}
         </p>
       );
     });

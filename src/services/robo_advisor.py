@@ -231,10 +231,12 @@ Hãy phân tích:
 3. Đưa ra lời khuyên thực tế để rút ngắn lộ trình đạt được Số Tự Do Tài Chính mục tiêu.
 
 LƯU Ý QUAN TRỌNG VỀ ĐỊNH DẠNG:
-- KHÔNG ĐƯỢC dùng ký tự dấu sao (*) hoặc (**) làm đầu dòng hay bôi đậm.
-- Khi liệt kê các ý hoặc các bước hành động, hãy xuống dòng bằng ký tự '\n' và sử dụng dấu gạch ngang '-' hoặc đánh số thứ tự rõ ràng (1., 2., 3.) để hiển thị sạch sẽ.
-- Tránh ghi các từ như \"aggressive\", \"moderate\" hay \"conservative\" kèm dấu gạch chéo ngược. Hãy dùng tiếng Việt (ví dụ: Tăng trưởng, Cân bằng, Thận trọng) hoặc ghi thường bình thường.
-- Chỉ trả về đoạn văn phân tích dưới dạng TEXT thuần, không chứa mã markdown JSON, phân đoạn rõ ràng bằng ký tự xuống dòng.
+- Sử dụng định dạng Markdown chuẩn. Dùng dấu gạch ngang '-' làm đầu dòng cho danh sách.
+- Hãy dùng dấu sao kép (**) để bôi đậm các từ khóa hoặc tiêu đề phụ quan trọng (Ví dụ: **Cách tối ưu:**, **Lời khuyên Rebalance:**).
+- Để hiển thị danh sách con thụt lề (nested list), hãy thụt lề 2 hoặc 4 dấu cách trước dấu gạch ngang (Ví dụ: "  - Tập trung...").
+- Đặc biệt chú ý: Hãy ngắt dòng bằng cách xuống dòng thực tế (nhấn phím Enter), TUYỆT ĐỐI KHÔNG ghi hoặc chèn chuỗi ký tự '\\n' (dấu gạch chéo ngược và chữ n) vào văn bản.
+- Dùng tiếng Việt cho hồ sơ rủi ro (Ví dụ: Tăng trưởng, Cân bằng, Thận trọng).
+- Chỉ trả về đoạn văn phân tích dưới dạng văn bản Markdown thuần, không chứa thẻ bao ngoài JSON hay HTML.
 """
     try:
         overall_analysis = await asyncio.to_thread(lambda: _call_gemini(prompt))
