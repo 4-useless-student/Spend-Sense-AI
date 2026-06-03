@@ -263,12 +263,25 @@ async def _fetch_vnstock_quotes(symbols: list[str]) -> list[dict[str, Any]]:
                         continue
                 if trading is None:
                     raise ValueError("Không thể khởi tạo vnstock.Trading.")
-                # Wrap the synchronous price_board call in to_thread
-                frame = await asyncio.to_thread(lambda: trading.price_board(symbols_list=stock_symbols))
-                records = _dataframe_records(frame)
-                quotes = _quotes_from_records(stock_symbols, records, "vnstock")
-                for q in quotes:
-                    stock_quotes_by_symbol[q["symbol"]] = q
+                try:
+                    # Wrap the synchronous price_board call in to_thread
+                    frame = await asyncio.to_thread(lambda: trading.price_board(symbols_list=stock_symbols))
+                    records = _dataframe_records(frame)
+                    quotes = _quotes_from_records(stock_symbols, records, "vnstock")
+                    for q in quotes:
+                        stock_quotes_by_symbol[q["symbol"]] = q
+                except Exception as batch_exc:
+                    log.warning("market_data.vnstock.trading.batch_failed", symbols=stock_symbols[:10], error=str(batch_exc))
+                    # Fallback: query symbols one-by-one
+                    for symbol in stock_symbols:
+                        try:
+                            frame_single = await asyncio.to_thread(lambda: trading.price_board(symbols_list=[symbol]))
+                            records_single = _dataframe_records(frame_single)
+                            quotes_single = _quotes_from_records([symbol], records_single, "vnstock")
+                            if quotes_single:
+                                stock_quotes_by_symbol[symbol] = quotes_single[0]
+                        except Exception as single_exc:
+                            log.warning("market_data.vnstock.trading.single_failed", symbol=symbol, error=str(single_exc))
         except Exception as exc:
             log.warning("market_data.vnstock.trading.failed", symbols=stock_symbols[:10], error=str(exc))
             

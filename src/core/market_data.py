@@ -150,21 +150,38 @@ def fetch_stock_prices(symbols: list[str]) -> dict[str, float]:
                 continue
         if trading is None:
             raise ValueError("Không thể khởi tạo vnstock.Trading.")
-        df = trading.price_board(symbols_list=clean_symbols)
-        
-        # Parse the dataframe to dict
-        if df is not None and not df.empty:
-            # check if dataframe has symbol and close_price columns
-            records = df.to_dict(orient='records')
-            for row in records:
-                sym = str(row.get("symbol", "")).upper()
-                price = _coalesce_price(
-                    row.get("close_price"),
-                    row.get("reference_price"),
-                    row.get("open_price"),
-                )
-                if price is not None:
-                    prices[sym] = price
+        try:
+            df = trading.price_board(symbols_list=clean_symbols)
+            if df is not None and not df.empty:
+                records = df.to_dict(orient='records')
+                for row in records:
+                    sym = str(row.get("symbol", "")).upper()
+                    price = _coalesce_price(
+                        row.get("close_price"),
+                        row.get("reference_price"),
+                        row.get("open_price"),
+                    )
+                    if price is not None:
+                        prices[sym] = price
+        except Exception as batch_exc:
+            log.warning("market_data.fetch_stock_prices.batch_failed", symbols=clean_symbols, error=str(batch_exc))
+            # Fallback: query symbols one-by-one to prevent a single invalid symbol from breaking the whole batch
+            for s in clean_symbols:
+                try:
+                    df_single = trading.price_board(symbols_list=[s])
+                    if df_single is not None and not df_single.empty:
+                        records = df_single.to_dict(orient='records')
+                        if records:
+                            row = records[0]
+                            price = _coalesce_price(
+                                row.get("close_price"),
+                                row.get("reference_price"),
+                                row.get("open_price"),
+                            )
+                            if price is not None:
+                                prices[s] = price
+                except Exception as single_exc:
+                    log.warning("market_data.fetch_stock_prices.single_failed", symbol=s, error=str(single_exc))
                     
         # Fill in any missing symbols from fallback
         for s in clean_symbols:
@@ -201,19 +218,38 @@ def fetch_stock_price_details(symbols: list[str]) -> dict[str, dict[str, Any]]:
                 continue
         if trading is None:
             raise ValueError("Không thể khởi tạo vnstock.Trading.")
-        df = trading.price_board(symbols_list=clean_symbols)
-
-        if df is not None and not df.empty:
-            records = df.to_dict(orient='records')
-            for row in records:
-                sym = str(row.get("symbol", "")).upper()
-                price = _coalesce_price(
-                    row.get("close_price"),
-                    row.get("reference_price"),
-                    row.get("open_price"),
-                )
-                if price is not None:
-                    prices[sym] = {"price": price, "source": "vnstock"}
+        try:
+            df = trading.price_board(symbols_list=clean_symbols)
+            if df is not None and not df.empty:
+                records = df.to_dict(orient='records')
+                for row in records:
+                    sym = str(row.get("symbol", "")).upper()
+                    price = _coalesce_price(
+                        row.get("close_price"),
+                        row.get("reference_price"),
+                        row.get("open_price"),
+                    )
+                    if price is not None:
+                        prices[sym] = {"price": price, "source": "vnstock"}
+        except Exception as batch_exc:
+            log.warning("market_data.fetch_stock_details.batch_failed", symbols=clean_symbols, error=str(batch_exc))
+            # Fallback: query symbols one-by-one
+            for s in clean_symbols:
+                try:
+                    df_single = trading.price_board(symbols_list=[s])
+                    if df_single is not None and not df_single.empty:
+                        records = df_single.to_dict(orient='records')
+                        if records:
+                            row = records[0]
+                            price = _coalesce_price(
+                                row.get("close_price"),
+                                row.get("reference_price"),
+                                row.get("open_price"),
+                            )
+                            if price is not None:
+                                prices[s] = {"price": price, "source": "vnstock"}
+                except Exception as single_exc:
+                    log.warning("market_data.fetch_stock_details.single_failed", symbol=s, error=str(single_exc))
 
         for s in clean_symbols:
             if s not in prices:

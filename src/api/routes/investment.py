@@ -87,23 +87,14 @@ async def get_portfolio(
     if not assets:
         return []
         
-    # Extract unique symbols to fetch current prices
-    symbols = list({a.symbol for a in assets})
+    # Extract unique symbols to fetch current prices (excluding saving assets which are valued dynamically)
+    symbols = list({a.symbol for a in assets if a.type != "saving"})
     market_prices = get_market_prices(symbols)
     
     response_items = []
     for asset in assets:
         if asset.type == "saving":
-            # Savings current value grows with interest rate over time
-            # purchase_price is the principal. interest_rate is annual percentage (e.g. 5.5 representing 5.5% APR)
-            # Simple interest based on the number of days since created_at
-            interest_rate = asset.interest_rate or 0.0
-            created_date = asset.created_at or datetime.utcnow()
-            days_passed = (datetime.utcnow() - created_date).days
-            if days_passed < 0:
-                days_passed = 0
-            accrued_factor = 1.0 + (interest_rate / 100.0) * (days_passed / 365.0)
-            current_price = asset.purchase_price * accrued_factor
+            current_price = asset.saving_current_price
         else:
             current_price = market_prices.get(asset.symbol, asset.purchase_price)
             if current_price == 0.0:
@@ -148,6 +139,10 @@ def normalize_purchase_price(symbol: str, asset_type: str, price: float) -> floa
     symbol = symbol.strip().upper()
     asset_type = asset_type.strip().lower()
     
+    # Savings accounts do not need stock-style price normalization
+    if asset_type == "saving":
+        return price
+        
     # 1. Fetch current price as a reference point
     market_prices = get_market_prices([symbol])
     current_price = market_prices.get(symbol, 0.0)
@@ -238,13 +233,7 @@ async def add_portfolio_asset(
     
     # Return with evaluation properties
     if asset.type == "saving":
-        interest_rate = asset.interest_rate or 0.0
-        created_date = asset.created_at or datetime.utcnow()
-        days_passed = (datetime.utcnow() - created_date).days
-        if days_passed < 0:
-            days_passed = 0
-        accrued_factor = 1.0 + (interest_rate / 100.0) * (days_passed / 365.0)
-        current_price = asset.purchase_price * accrued_factor
+        current_price = asset.saving_current_price
     else:
         market_prices = get_market_prices([asset.symbol])
         current_price = market_prices.get(asset.symbol, asset.purchase_price)

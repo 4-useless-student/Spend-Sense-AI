@@ -20,22 +20,21 @@ SpendSense AI đã triển khai hoàn thiện hai luồng use-case chính tập 
     *   Lưu và truy vấn trong **ChromaDB**. Nếu hóa đơn tương đồng $\ge 90\%$, hệ thống trả về lời khuyên chi tiêu ngay lập tức từ bộ nhớ cache (**0 token LLM tiêu tốn**).
     *   **Feedback Loop**: Hỗ trợ 👍 (CONFIRM - giữ cache) hoặc 👎 (REJECT - xóa cache/unlearn) trực quan.
 
-### 1.2 Luồng 2: Quản Lý Danh Mục Đầu Tư & AI Stress-Test Vĩ Mô (Investment & Shock Simulation)
+### 1.2 Luồng 2: Quản Lý Danh Mục Đầu Tư & AI Cố Vấn Tích Lũy (Investment & Robo-Advisor)
 *   **Hồ Sơ Rủi Ro**: Cho phép người dùng tùy chỉnh khẩu vị rủi ro (Thận trọng, Trung bình, Tăng trưởng), thiết lập tổng vốn đầu tư và mục tiêu tài chính.
 *   **Quản Lý Tài Sản Thực Tế & Trải Nghiệm Người Dùng Tối Ưu**:
-    *   Kết nối trực tiếp thư viện **vnstock (KBS source)** lấy giá cổ phiếu Việt Nam (FPT, TCB, VNM,...) thời gian thực.
+    *   Kết nối trực tiếp thư viện **vnstock (KBS source)** lấy giá cổ phiếu Việt Nam (FPT, HPG, VNM,...) thời gian thực.
     *   Gọi API công khai của **Binance** lấy giá các đồng tiền mã hóa phổ biến (BTC, ETH,...) quy đổi sang VND.
     *   Truy vấn dữ liệu XML tỷ giá vàng **SJC** chính thức.
     *   Tự động tính toán tổng tài sản thực tế, lợi nhuận tạm tính (P/L) và tỷ lệ phần trăm biến động.
     *   **Trợ Lý AI Quick-Add (AI Copilot)**: Phân tích mô tả giao dịch bằng ngôn ngữ tự nhiên sử dụng **Gemini 2.5 Flash** (ví dụ: *"Tôi mới mua 200 cổ phiếu FPT giá 135k"*) để trích xuất JSON cấu trúc đầy đủ và tự động điền thông tin vào biểu mẫu chỉ với 1 click.
     *   **Smart Price Normalization (Tự động Chuẩn hóa Giá)**: Tự động điều chỉnh sai lệch đơn vị giá mua đầu vào (Vàng chỉ/lượng, Cổ phiếu hàng chục/hàng ngàn, Crypto USD/VND) dựa trên tỷ số so sánh với giá live thị trường, ngăn chặn lỗi hiện sai lệch lợi nhuận khổng lồ.
     *   **Autocomplete & Auto-Prefill (Gợi ý & Điền sẵn)**: Dropdown gợi ý các mã tài sản phổ biến (FPT, GOLD, BTC, SAVING...) khi người dùng nhập thủ công, tự động điền Tên tài sản, phân loại, màu đồ thị và tự động gọi API lấy giá thị trường hiện thời để điền sẵn vào ô giá.
-*   **Giả Lập Stress-Test & Đề Xuất Phòng Vệ**:
-    *   Chạy công cụ mô phỏng 4 biến cố vĩ mô: *Lạm phát phi mã, Suy thoái thị trường, Khủng hoảng công nghệ, Sụp đổ crypto*.
-    *   Tính toán chỉ số đa dạng hóa danh mục (Simpson Diversity Index) và mức độ tổn hại rủi ro tối đa (Vulnerability Score).
-    *   Gọi mô hình **Gemini 2.5 Flash** phân tích sâu cấu trúc danh mục và xuất ra các hành động phòng vệ (hedging/rebalance) chi tiết kèm số tiền khuyến nghị.
 
-### 1.3 AI Cố Vấn Tài Chính Cá Nhân Hóa (AI Robo-Advisor) — MỚI
+### 1.3 AI Cố Vấn Tài Chính Cá Nhân Hóa & Tái Cân Bằng (AI Robo-Advisor) — MỚI
+*   **Tái Cân Bằng Danh Mục Robo-Advisor**:
+    *   So sánh trực quan tỷ lệ phân bổ tài sản **Hiện tại** so với tỷ lệ **Mục tiêu** tối ưu tương ứng với 3 khẩu vị rủi ro: *Thận trọng (Conservative), Trung bình (Moderate), Tăng trưởng (Aggressive)*.
+    *   Tự động tính toán chênh lệch giá trị danh mục và đưa ra đề xuất rõ ràng bằng tiếng Việt cho từng lớp tài sản: **Mua thêm** (màu xanh lá), **Bán bớt** (màu đỏ), hoặc **Giữ nguyên** (màu xám) kèm số tiền cụ thể cần cơ cấu.
 *   **Nhận Định Cá Nhân Hóa**: Tab riêng trong trang Đầu tư, phân tích toàn diện tình hình tài chính cá nhân:
     *   Đánh giá **Khẩu vị rủi ro** (Thận trọng / Trung bình / Tăng trưởng) và **Tỷ lệ tiết kiệm thực tế** dựa trên dữ liệu thu chi 30 ngày gần nhất.
     *   Tính toán thời gian đạt **Mục tiêu tiết kiệm** (số tiền tích lũy cụ thể do người dùng nhập) theo 3 tốc độ: Hiện tại, Trung bình, và Tối ưu.
@@ -48,14 +47,13 @@ SpendSense AI đã triển khai hoàn thiện hai luồng use-case chính tập 
 *   **Nút Hướng Dẫn (?) Theo Ngữ Cảnh**: Mỗi tab trong trang Đầu tư đều có nút dấu chấm hỏi, bấm vào sẽ hiện modal hướng dẫn sử dụng các chức năng chi tiết tương ứng với tab đang hoạt động.
 *   **Market Ticker Ngang**: Hiển thị ticker chạy ngang ở đầu trang Đầu tư với giá và % biến động thời gian thực của các chỉ số (VN-Index, VN30, HNX-Index) và quỹ ETF (E1VFVN30, FUEVFVND, FUESSVFL).
 
-
 ---
 
 ## 2. Giới Hạn (Limitations)
 *   **Chất lượng ảnh đầu vào**: Độ chính xác của YOLO và VietOCR phụ thuộc lớn vào góc chụp, ánh sáng và nếp gấp của hóa đơn giấy.
 *   **Dữ liệu lịch sử đầu tư**: Hiện tại danh mục đầu tư chỉ ghi nhận số dư và giá mua trung bình thời gian thực; chưa vẽ biểu đồ tăng trưởng lịch sử nhiều năm dựa trên dữ liệu thật (đồ thị tăng trưởng hiện tại sử dụng đường cong giả lập kết thúc ở giá trị thực tế).
 *   **Tốc độ mạng ngoại vi**: Việc gọi API tỷ giá Binance hoặc XML SJC có thể bị chậm hoặc chặn (rate limit) tùy thuộc vào kết nối mạng của máy chủ deploy.
-*   **Gemini API Quota**: Các tính năng AI (Robo-Advisor, AI Copilot, Stress-Test) phụ thuộc vào quota của Google Gemini API key. Khi hết quota, hệ thống sẽ báo lỗi; cần thay API key mới trong file `.env` (biến `GEMINI_API_KEY`).
+*   **Gemini API Quota**: Các tính năng AI (Robo-Advisor, AI Copilot) phụ thuộc vào quota của Google Gemini API key. Khi hết quota, hệ thống sẽ báo lỗi; cần thay API key mới trong file `.env` (biến `GEMINI_API_KEY`).
 
 ---
 

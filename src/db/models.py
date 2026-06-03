@@ -106,6 +106,18 @@ class InvestmentAsset(Base):
 
     user: Mapped[User] = relationship(back_populates="investment_assets")
 
+    @property
+    def saving_current_price(self) -> float:
+        if self.type != "saving":
+            return self.purchase_price
+        interest_rate = self.interest_rate or 0.0
+        created_date = self.created_at or datetime.utcnow()
+        days_passed = (datetime.utcnow() - created_date).days
+        if days_passed < 0:
+            days_passed = 0
+        accrued_factor = 1.0 + (interest_rate / 100.0) * (days_passed / 365.0)
+        return self.purchase_price * accrued_factor
+
 
 class FinancialGoal(Base):
     __tablename__ = "financial_goals"

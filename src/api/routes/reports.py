@@ -156,13 +156,16 @@ def _investment_summary(assets: list[InvestmentAsset]) -> ReportInvestmentSummar
             assets=[],
         )
 
-    prices = get_market_prices(list({asset.symbol for asset in assets}))
+    prices = get_market_prices(list({asset.symbol for asset in assets if asset.type != "saving"}))
     evaluated_assets: list[ReportInvestmentAssetResponse] = []
     total_invested = 0.0
     current_value = 0.0
 
     for asset in assets:
-        current_price = prices.get(asset.symbol, asset.purchase_price) or asset.purchase_price
+        if asset.type == "saving":
+            current_price = asset.saving_current_price
+        else:
+            current_price = prices.get(asset.symbol, asset.purchase_price) or asset.purchase_price
         value = asset.quantity * current_price
         invested = asset.quantity * asset.purchase_price
         profit = value - invested
