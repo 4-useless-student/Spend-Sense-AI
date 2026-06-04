@@ -34,6 +34,7 @@ env/
 # Data / notebooks
 .ipynb_checkpoints/
 *.db
+chroma_data/
 /src/models/yolo/
 
 # Coverage / build
@@ -57,3 +58,8 @@ GEMINI.md
 # PA3 temp context & agent walkthroughs
 bonus_context/
 walkthrough.md
+demo_script.md
+demo_script.pdf
+README\ copy.md
+tests/
+

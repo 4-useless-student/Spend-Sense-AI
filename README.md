@@ -72,7 +72,10 @@ Spend-Sense-AI/                    # monorepo root
 │       └── routes/
 │           ├── receipts.py        #   POST /receipts/analyze
 │           ├── insights.py        #   GET  /insights, GET /insights/{id}
-│           └── feedback.py        #   POST /feedback/{insight_id}
+│           ├── feedback.py        #   POST /feedback/{insight_id}
+│           ├── investment.py      #   GET/POST /investments/portfolio, /robo-advisor
+│           ├── market.py          #   GET /market/quotes (vnstock, Binance, SJC)
+│           └── reports.py         #   GET /reports/summary (income/expense/P&L)
 │
 ├── tests/
 │   ├── conftest.py
@@ -124,6 +127,11 @@ Spend-Sense-AI/                    # monorepo root
 | `GET` | `/insights` | List cached insights (paginated) |
 | `GET` | `/insights/{id}` | Single insight detail |
 | `POST` | `/feedback/{insight_id}` | 👍/👎 reinforce or unlearn a pattern |
+| `GET` | `/investments/portfolio` | Retrieve user's investment portfolio with live pricing |
+| `POST` | `/investments/portfolio` | Add new asset (stock, gold, saving, crypto) to portfolio |
+| `GET` | `/investments/robo-advisor` | AI wealth simulator & asset allocation rebalancer |
+| `GET` | `/market/quotes` | Live stock indices, ETF quotes, crypto and gold ticker |
+| `GET` | `/reports/summary` | Get financial report summary (income, expense, investment P/L) |
 | `GET` | `/health` | Liveness check |
 
 ---

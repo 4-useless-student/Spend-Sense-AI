@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, String
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, String, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base
@@ -99,10 +99,24 @@ class InvestmentAsset(Base):
     quantity: Mapped[float] = mapped_column(Float, default=1.0)
     purchase_price: Mapped[float] = mapped_column(Float, default=0.0)
     color: Mapped[str] = mapped_column(String(20), default="#5BAAEC")
+    interest_rate: Mapped[float | None] = mapped_column(Float, nullable=True, default=0.0)
+    term_months: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user: Mapped[User] = relationship(back_populates="investment_assets")
+
+    @property
+    def saving_current_price(self) -> float:
+        if self.type != "saving":
+            return self.purchase_price
+        interest_rate = self.interest_rate or 0.0
+        created_date = self.created_at or datetime.utcnow()
+        days_passed = (datetime.utcnow() - created_date).days
+        if days_passed < 0:
+            days_passed = 0
+        accrued_factor = 1.0 + (interest_rate / 100.0) * (days_passed / 365.0)
+        return self.purchase_price * accrued_factor
 
 
 class FinancialGoal(Base):

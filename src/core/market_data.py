@@ -1,4 +1,5 @@
 import math
+from typing import Any
 
 import httpx
 import structlog
@@ -26,17 +27,92 @@ def _coalesce_price(*candidates) -> float | None:
 
 # Standard fallbacks for stock prices (VND)
 DEFAULT_STOCK_PRICES = {
-    "FPT": 135000.0,
-    "VNM": 68000.0,
-    "TCB": 35000.0,
-    "HPG": 28000.0,
+    # --- Chỉ số & Quỹ ETF ---
+    "VNINDEX": 1250.0,
+    "VN30": 1280.0,
+    "HNXINDEX": 240.0,
+    "E1VFVN30": 22500.0,
+    "FUEVFVND": 31000.0,
+    "FUESSVFL": 20500.0,
+    # --- Ngân hàng ---
     "VCB": 92000.0,
+    "BID": 48000.0,
+    "CTG": 33000.0,
+    "TCB": 35000.0,
+    "MBB": 23000.0,
+    "VPB": 19000.0,
     "ACB": 25000.0,
+    "STB": 28000.0,
+    "HDB": 24000.0,
+    "VIB": 21000.0,
+    "TPB": 18000.0,
+    "SHB": 11500.0,
+    "LPB": 29000.0,
+    "MSB": 14500.0,
+    "OCB": 14000.0,
+    "SSB": 22000.0,
+    # --- Chứng khoán ---
     "SSI": 35000.0,
     "VND": 20000.0,
-    "MWG": 60000.0,
+    "VCI": 48000.0,
+    "HCM": 29000.0,
+    "MBS": 30000.0,
+    "SHS": 18000.0,
+    "FTS": 58000.0,
+    "BSI": 52000.0,
+    "CTS": 38000.0,
+    # --- Bất động sản, Xây dựng & KCN ---
+    "VHM": 42000.0,
     "VIC": 45000.0,
+    "VRE": 22000.0,
+    "NVL": 14000.0,
+    "PDR": 24000.0,
+    "DIG": 26000.0,
+    "DXG": 16000.0,
+    "KBC": 31000.0,
+    "NLG": 38000.0,
+    "KDH": 35000.0,
+    "BCM": 62000.0,
+    "VGC": 52000.0,
+    "REE": 65000.0,
+    # --- Thép & Vật liệu ---
+    "HPG": 28000.0,
+    "HSG": 22000.0,
+    "NKG": 24000.0,
+    # --- Bán lẻ & Hàng tiêu dùng ---
+    "MWG": 60000.0,
+    "FRT": 150000.0,
+    "DGW": 62000.0,
+    "PNJ": 95000.0,
+    "MSN": 75000.0,
+    "VNM": 68000.0,
+    "SAB": 58000.0,
+    # --- Dầu khí & Năng lượng ---
+    "GAS": 78000.0,
+    "PLX": 38000.0,
+    "POW": 12500.0,
+    "PVD": 29000.0,
+    "PVS": 40000.0,
+    "PVT": 26000.0,
+    # --- Hóa chất & Nông nghiệp ---
+    "DGC": 115000.0,
+    "DPM": 34000.0,
+    "DCM": 36000.0,
+    "HAG": 13000.0,
+    "DBC": 32000.0,
+    # --- Công nghệ ---
+    "FPT": 135000.0,
+    "CTR": 120000.0,
+    "VGI": 65000.0,
+    "CMG": 55000.0,
+    "FOX": 72000.0,
+    # --- Vận tải & Hàng không ---
+    "VJC": 105000.0,
+    "HVN": 24000.0,
+    "GMD": 78000.0,
+    "HAH": 42000.0,
 }
+
 
 # Standard fallbacks for crypto prices (USD)
 DEFAULT_CRYPTO_PRICES_USD = {
@@ -65,22 +141,47 @@ def fetch_stock_prices(symbols: list[str]) -> dict[str, float]:
         if not clean_symbols:
             return {}
             
-        trading = vnstock.Trading(source='kbs')
-        df = trading.price_board(symbols_list=clean_symbols)
-        
-        # Parse the dataframe to dict
-        if df is not None and not df.empty:
-            # check if dataframe has symbol and close_price columns
-            records = df.to_dict(orient='records')
-            for row in records:
-                sym = str(row.get("symbol", "")).upper()
-                price = _coalesce_price(
-                    row.get("close_price"),
-                    row.get("reference_price"),
-                    row.get("open_price"),
-                )
-                if price is not None:
-                    prices[sym] = price
+        trading = None
+        for src_candidate in ['KBS', 'tcbs', 'VCI', 'ssi']:
+            try:
+                trading = vnstock.Trading(source=src_candidate)
+                break
+            except Exception:
+                continue
+        if trading is None:
+            raise ValueError("Không thể khởi tạo vnstock.Trading.")
+        try:
+            df = trading.price_board(symbols_list=clean_symbols)
+            if df is not None and not df.empty:
+                records = df.to_dict(orient='records')
+                for row in records:
+                    sym = str(row.get("symbol", "")).upper()
+                    price = _coalesce_price(
+                        row.get("close_price"),
+                        row.get("reference_price"),
+                        row.get("open_price"),
+                    )
+                    if price is not None:
+                        prices[sym] = price
+        except Exception as batch_exc:
+            log.warning("market_data.fetch_stock_prices.batch_failed", symbols=clean_symbols, error=str(batch_exc))
+            # Fallback: query symbols one-by-one to prevent a single invalid symbol from breaking the whole batch
+            for s in clean_symbols:
+                try:
+                    df_single = trading.price_board(symbols_list=[s])
+                    if df_single is not None and not df_single.empty:
+                        records = df_single.to_dict(orient='records')
+                        if records:
+                            row = records[0]
+                            price = _coalesce_price(
+                                row.get("close_price"),
+                                row.get("reference_price"),
+                                row.get("open_price"),
+                            )
+                            if price is not None:
+                                prices[s] = price
+                except Exception as single_exc:
+                    log.warning("market_data.fetch_stock_prices.single_failed", symbol=s, error=str(single_exc))
                     
         # Fill in any missing symbols from fallback
         for s in clean_symbols:
@@ -93,6 +194,75 @@ def fetch_stock_prices(symbols: list[str]) -> dict[str, float]:
         for s in symbols:
             prices[s.upper()] = DEFAULT_STOCK_PRICES.get(s.upper(), 50000.0)
             
+    return prices
+
+
+def fetch_stock_price_details(symbols: list[str]) -> dict[str, dict[str, Any]]:
+    """Fetch detailed stock price info with source tracking."""
+    if not symbols:
+        return {}
+    prices: dict[str, dict[str, Any]] = {}
+    try:
+        import vnstock
+
+        clean_symbols = [s.strip().upper() for s in symbols if s.strip()]
+        if not clean_symbols:
+            return {}
+
+        trading = None
+        for src_candidate in ['KBS', 'tcbs', 'VCI', 'ssi']:
+            try:
+                trading = vnstock.Trading(source=src_candidate)
+                break
+            except Exception:
+                continue
+        if trading is None:
+            raise ValueError("Không thể khởi tạo vnstock.Trading.")
+        try:
+            df = trading.price_board(symbols_list=clean_symbols)
+            if df is not None and not df.empty:
+                records = df.to_dict(orient='records')
+                for row in records:
+                    sym = str(row.get("symbol", "")).upper()
+                    price = _coalesce_price(
+                        row.get("close_price"),
+                        row.get("reference_price"),
+                        row.get("open_price"),
+                    )
+                    if price is not None:
+                        prices[sym] = {"price": price, "source": "vnstock"}
+        except Exception as batch_exc:
+            log.warning("market_data.fetch_stock_details.batch_failed", symbols=clean_symbols, error=str(batch_exc))
+            # Fallback: query symbols one-by-one
+            for s in clean_symbols:
+                try:
+                    df_single = trading.price_board(symbols_list=[s])
+                    if df_single is not None and not df_single.empty:
+                        records = df_single.to_dict(orient='records')
+                        if records:
+                            row = records[0]
+                            price = _coalesce_price(
+                                row.get("close_price"),
+                                row.get("reference_price"),
+                                row.get("open_price"),
+                            )
+                            if price is not None:
+                                prices[s] = {"price": price, "source": "vnstock"}
+                except Exception as single_exc:
+                    log.warning("market_data.fetch_stock_details.single_failed", symbol=s, error=str(single_exc))
+
+        for s in clean_symbols:
+            if s not in prices:
+                fallback = DEFAULT_STOCK_PRICES.get(s)
+                prices[s] = {"price": fallback, "source": "fallback" if fallback is not None else "unavailable"}
+
+    except Exception as exc:
+        log.warning("market_data.fetch_stock_details.failed", error=str(exc))
+        for s in symbols:
+            sym = s.upper()
+            fallback = DEFAULT_STOCK_PRICES.get(sym)
+            prices[sym] = {"price": fallback, "source": "fallback" if fallback is not None else "unavailable"}
+
     return prices
 
 

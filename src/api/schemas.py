@@ -310,6 +310,19 @@ class InsightListResponse(BaseModel):
 # Investment schemas
 # ---------------------------------------------------------------------------
 
+class ParseAssetRequest(BaseModel):
+    text: str
+
+
+class ParseAssetResponse(BaseModel):
+    symbol: str
+    name: str
+    type: str  # stock, gold, saving, crypto
+    quantity: float
+    purchase_price: float
+    color: str
+
+
 class InvestmentProfileRequest(BaseModel):
     risk_appetite: str
     capital: float
@@ -334,6 +347,8 @@ class InvestmentAssetRequest(BaseModel):
     quantity: float
     purchase_price: float
     color: str = "#5BAAEC"
+    interest_rate: float | None = 0.0
+    term_months: int | None = 0
 
 
 class InvestmentAssetResponse(BaseModel):
@@ -349,6 +364,8 @@ class InvestmentAssetResponse(BaseModel):
     profit: float | None = None
     profit_percent: float | None = None
     color: str
+    interest_rate: float | None = 0.0
+    term_months: int | None = 0
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -475,4 +492,55 @@ class PreferencesResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ---------------------------------------------------------------------------
+# Robo-Advisor & Wealth Planner schemas
+# ---------------------------------------------------------------------------
+
+class RebalanceSuggestion(BaseModel):
+    asset_class: str  # stock, gold, saving, crypto, cash
+    current_weight: float
+    target_weight: float
+    difference_value: float
+    action: str  # Mua thêm, Bán bớt, Giữ nguyên
+    reasoning: str
+
+
+class SavingChallenge(BaseModel):
+    id: str
+    title: str
+    description: str
+    target_amount: float
+    current_amount: float
+    status: str  # active, joined, completed
+    badge: str
+
+
+class RoboAdvisorResponse(BaseModel):
+    portfolio_value: float
+    total_capital: float
+    idle_cash: float
+    monthly_income: float
+    monthly_expenses: float
+    savings_rate: float
+    financial_freedom_number: float
+    years_to_financial_freedom: float
+    risk_appetite: str
+    diversification_score: float
+    target_allocation: dict[str, float]
+    actual_allocation: dict[str, float]
+    rebalance_suggestions: list[RebalanceSuggestion]
+    overall_analysis: str
+    challenges: list[SavingChallenge]
+
+
+class JoinChallengeRequest(BaseModel):
+    challenge_id: str
+
+
+class ChallengeProgressRequest(BaseModel):
+    challenge_id: str
+    amount: float
+
 
