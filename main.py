@@ -16,7 +16,7 @@ _log = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     cfg = get_settings()
     configure_logging(debug=cfg.debug)
-    _warm_up_models()
+    # Skip model warm-up on startup (do on first request instead)
     _log.info("SpendSense AI started.")
     yield
 
@@ -59,7 +59,13 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1):\d+$",
+        allow_origins=[
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:5173",
+            "https://spend-sense-ai.vercel.app",
+        ],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
