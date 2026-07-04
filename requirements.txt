@@ -24,7 +24,7 @@ sentence-transformers>=3.3.0
 
 # Vector store
 chromadb>=0.6.0
-onnxruntime<1.24.0
+onnxruntime>=1.24.0
 
 # Utilities
 httpx>=0.28.0
