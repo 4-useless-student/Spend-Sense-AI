@@ -1,20 +1,31 @@
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
 from uuid import NAMESPACE_URL, UUID, uuid5
 
+import bcrypt
 import jwt
-from passlib.context import CryptContext
 
 from src.core.config import get_settings
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def _bcrypt_input(plain: str) -> bytes:
+    return sha256(plain.encode("utf-8")).hexdigest().encode("ascii")
 
 
 def hash_password(plain: str) -> str:
-    return _pwd_context.hash(plain)
+    return bcrypt.hashpw(_bcrypt_input(plain), bcrypt.gensalt()).decode("ascii")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_context.verify(plain, hashed)
+    hashed_bytes = hashed.encode("ascii")
+    if bcrypt.checkpw(_bcrypt_input(plain), hashed_bytes):
+        return True
+
+    raw = plain.encode("utf-8")
+    if len(raw) <= 72:
+        return bcrypt.checkpw(raw, hashed_bytes)
+
+    return False
 
 
 def user_id_from_email(email: str) -> UUID:
