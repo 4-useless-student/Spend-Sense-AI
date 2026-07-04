@@ -2,7 +2,6 @@
 name = "spend-sense-ai"
 version = "0.1.0"
 description = "AI-powered personal expense management with semantic caching"
-readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     # Web framework
