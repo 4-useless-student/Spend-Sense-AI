@@ -26,7 +26,7 @@ git push origin main
 
 ### **2.2 Import Project**
 1. Dashboard → "Add New" → **Project**
-2. Chọn repository: `4-useless-student/Spend-Sense-AI`
+2. Chọn repository: `Spend-Sense-AI`
 3. Click "Import"
 
 ---
@@ -42,19 +42,17 @@ PROJECT NAME: spend-sense-ai
 ```
 
 ### **3.2 Framework & Build Settings**
+Vercel sẽ đọc cấu hình từ [frontend/vercel.json](frontend/vercel.json#L1), nên bạn có thể giữ mặc định hoặc để `Other`.
+
+Nếu cần nhập tay trong UI thì dùng:
 ```
-Framework Preset: Vite (hoặc Other)
 Build Command: npm run build
 Output Directory: dist
 Install Command: npm install
 ```
 
-### **3.3 Root Directory (QUAN TRỌNG!)** ⚠️
-```
-Root Directory: frontend
-```
-
-**CLICK "EDIT" → Thay thành `frontend`**
+### **3.3 Root Directory**
+Đặt `Root Directory` thành `frontend`.
 
 ---
 
@@ -68,9 +66,10 @@ Root Directory: frontend
 VITE_API_URL = https://spend-sense-backend-production.up.railway.app
 VITE_TIMEOUT_MS = 10000
 VITE_RECEIPT_TIMEOUT_MS = 120000
+VITE_GOOGLE_CLIENT_ID = your-google-client-id
 ```
 
-> 💡 Thay Railway URL của bạn vào `VITE_API_URL`
+> 💡 Thay Railway URL của bạn vào `VITE_API_URL`. Nếu không dùng Google login thì có thể bỏ `VITE_GOOGLE_CLIENT_ID`.
 
 ### **4.2 Save**
 Click "Save" → Continue
