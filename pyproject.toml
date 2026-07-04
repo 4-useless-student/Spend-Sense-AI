@@ -2,7 +2,7 @@
 name = "spend-sense-ai"
 version = "0.1.0"
 description = "AI-powered personal expense management with semantic caching"
-requires-python = ">=3.10"
+requires-python = ">=3.13,<3.14"
 dependencies = [
     # Web framework
     "fastapi>=0.115.0",
