@@ -63,13 +63,15 @@ Install Command: npm install
 2. Thêm từng biến:
 
 ```
-VITE_API_URL = https://spend-sense-backend-production.up.railway.app
+VITE_API_URL = /api
 VITE_TIMEOUT_MS = 10000
 VITE_RECEIPT_TIMEOUT_MS = 120000
 VITE_GOOGLE_CLIENT_ID = your-google-client-id
 ```
 
-> 💡 Thay Railway URL của bạn vào `VITE_API_URL`. Nếu không dùng Google login thì có thể bỏ `VITE_GOOGLE_CLIENT_ID`.
+> 💡 Dùng `VITE_API_URL = /api` để frontend đi qua proxy của Vercel, tránh lỗi CORS và tránh gọi nhầm vào frontend domain.
+> 💡 Nếu muốn trỏ trực tiếp vào Railway thì vẫn có thể set full URL, nhưng lúc đó phải giữ CORS backend như hiện tại.
+> 💡 Backend FastAPI đã đọc `PORT` từ Railway qua lệnh `python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}`, nên phần này không cần sửa.
 
 ### **4.2 Save**
 Click "Save" → Continue

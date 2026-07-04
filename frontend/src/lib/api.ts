@@ -1,9 +1,12 @@
 const ENV_API_URL = import.meta.env.VITE_API_URL as string | undefined;
+const IS_PROD = import.meta.env.PROD;
 const REQUEST_TIMEOUT_MS = Number(import.meta.env.VITE_TIMEOUT_MS ?? 15000);
 const RECEIPT_ANALYZE_TIMEOUT_MS = Number(import.meta.env.VITE_RECEIPT_TIMEOUT_MS ?? 120000);
 const API_URLS = ENV_API_URL
   ? [ENV_API_URL]
-  : ["http://localhost:8080", "http://127.0.0.1:8080"];
+  : IS_PROD
+    ? ["/api", "http://localhost:8080", "http://127.0.0.1:8080"]
+    : ["http://localhost:8080", "http://127.0.0.1:8080"];
 export const TOKEN_KEY = "spendsense_token";
 export const USER_KEY = "spendsense_user";
 
