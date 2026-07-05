@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import uuid
 import time
 import unicodedata
@@ -76,6 +77,35 @@ Trả đúng cấu trúc:
   "observations": ["<nhận xét 1>", "<nhận xét 2>", "<nhận xét 3>"],
   "suggested_actions": ["<hành động cụ thể 1>", "<hành động cụ thể 2>", "<hành động cụ thể 3>"]
 }}"""
+
+_RECEIPT_VISION_PROMPT = """Bạn là hệ thống đọc hóa đơn tiếng Việt.
+Hãy đọc ảnh hóa đơn và chỉ trả JSON hợp lệ. Không thêm markdown hay giải thích.
+
+Yêu cầu:
+- Không bịa món hàng. Nếu ảnh mờ, chỉ trích xuất thông tin nhìn thấy rõ.
+- Giá trị tiền tệ trả dạng số, không có dấu chấm/phẩy phân tách.
+- Nếu thiếu số lượng, dùng 1.
+- Nếu chỉ thấy tổng tiền nhưng không đọc được từng món, trả items rỗng và total_amount theo tổng tiền.
+- purchase_date dùng định dạng YYYY-MM-DD nếu thấy ngày, nếu không chắc thì để chuỗi rỗng.
+- currency mặc định là VND.
+
+Trả đúng cấu trúc:
+{
+  "merchant": "<tên cửa hàng hoặc Unknown Merchant>",
+  "purchase_date": "<YYYY-MM-DD hoặc chuỗi rỗng>",
+  "currency": "VND",
+  "items": [
+    {
+      "name": "<tên món>",
+      "quantity": 1,
+      "unit_price": 25000,
+      "discount": 0,
+      "total_price": 25000
+    }
+  ],
+  "total_amount": 77000,
+  "raw_text": "<toàn bộ text quan trọng đọc được, ngắn gọn>"
+}"""
 
 
 def generate_insight(receipt: Receipt) -> ToolResult:
@@ -217,26 +247,86 @@ def generate_financial_report_review(report_payload: dict[str, Any]) -> ToolResu
     return ToolResult.success("Financial report review generated", data=parsed)
 
 
+def analyze_receipt_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> ToolResult:
+    """Extract structured receipt data directly from an image with Gemini Vision."""
+    cfg = get_settings()
+    try:
+        raw_json = _call_gemini(
+            _RECEIPT_VISION_PROMPT,
+            api_key=cfg.receipt_gemini_api_key or None,
+            image_bytes=image_bytes,
+            image_mime_type=mime_type,
+            response_schema=_receipt_vision_response_schema(),
+            timeout=60,
+            retries=1,
+        )
+    except NotImplementedError:
+        return ToolResult.error(
+            summary="Gemini Vision is not configured",
+            error_hint=(
+                "RECEIPT_GEMINI_API_KEY is not set, and GEMINI_API_KEY fallback is also empty. "
+                "Set one of them or switch RECEIPT_ANALYZER to yolo_vietocr."
+            ),
+            next_actions=["Set RECEIPT_GEMINI_API_KEY", "Restart FastAPI", "Retry analysis"],
+        )
+    except Exception as exc:
+        return ToolResult.error(
+            summary="Gemini Vision receipt extraction failed",
+            error_hint=f"{type(exc).__name__}: {exc}",
+            next_actions=["Check RECEIPT_GEMINI_API_KEY/quota", "Retry with a clearer receipt image"],
+        )
+
+    try:
+        parsed = _parse_response(raw_json)
+    except Exception as exc:
+        return ToolResult.error(
+            summary="Failed to parse Gemini Vision receipt JSON",
+            error_hint=f"JSON parse error: {exc}. Raw response: {raw_json[:300]}",
+            next_actions=["Retry with same image", "Check prompt/schema"],
+        )
+
+    return ToolResult.success(
+        summary="Gemini Vision extracted receipt JSON",
+        data=parsed,
+        next_actions=["Normalize receipt draft", "Generate insight"],
+    )
+
+
 def _call_gemini(
     prompt: str,
     *,
     model_name: str | None = None,
+    api_key: str | None = None,
     response_schema: dict[str, Any] | None = None,
+    image_bytes: bytes | None = None,
+    image_mime_type: str | None = None,
     timeout: float = 60,
     retries: int = 2,
 ) -> str:
     cfg = get_settings()
-    if not cfg.gemini_api_key:
+    selected_api_key = api_key or cfg.gemini_api_key
+    if not selected_api_key:
         raise NotImplementedError
 
     import httpx
 
     model = model_name or cfg.gemini_model
+    parts: list[dict[str, Any]] = [{"text": prompt}]
+    if image_bytes:
+        parts.append(
+            {
+                "inline_data": {
+                    "mime_type": image_mime_type or "image/jpeg",
+                    "data": base64.b64encode(image_bytes).decode("ascii"),
+                }
+            }
+        )
+
     payload: dict[str, Any] = {
         "contents": [
             {
                 "role": "user",
-                "parts": [{"text": prompt}],
+                "parts": parts,
             }
         ],
         "generationConfig": {
@@ -247,12 +337,12 @@ def _call_gemini(
     if response_schema:
         payload["generationConfig"]["responseSchema"] = response_schema
 
-    response = _post_gemini_with_retry(model, cfg.gemini_api_key, payload, timeout=timeout, retries=retries)
+    response = _post_gemini_with_retry(model, selected_api_key, payload, timeout=timeout, retries=retries)
     if response.status_code == 400 and response_schema:
         # Some model variants accept JSON mode but reject responseSchema. Retry
         # once so categorization still works instead of silently becoming khac.
         payload["generationConfig"].pop("responseSchema", None)
-        response = _post_gemini_with_retry(model, cfg.gemini_api_key, payload, timeout=timeout, retries=retries)
+        response = _post_gemini_with_retry(model, selected_api_key, payload, timeout=timeout, retries=retries)
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
@@ -401,6 +491,34 @@ def _financial_report_response_schema() -> dict[str, Any]:
             },
         },
         "required": ["summary", "observations", "suggested_actions"],
+    }
+
+
+def _receipt_vision_response_schema() -> dict[str, Any]:
+    return {
+        "type": "OBJECT",
+        "properties": {
+            "merchant": {"type": "STRING"},
+            "purchase_date": {"type": "STRING"},
+            "currency": {"type": "STRING"},
+            "items": {
+                "type": "ARRAY",
+                "items": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "name": {"type": "STRING"},
+                        "quantity": {"type": "NUMBER"},
+                        "unit_price": {"type": "NUMBER"},
+                        "discount": {"type": "NUMBER"},
+                        "total_price": {"type": "NUMBER"},
+                    },
+                    "required": ["name", "quantity", "unit_price", "total_price"],
+                },
+            },
+            "total_amount": {"type": "NUMBER"},
+            "raw_text": {"type": "STRING"},
+        },
+        "required": ["merchant", "currency", "items", "total_amount", "raw_text"],
     }
 
 

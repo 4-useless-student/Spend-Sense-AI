@@ -186,8 +186,7 @@ ChromaDB host/port/collection are configured via `CHROMA_HOST`, `CHROMA_PORT`,
 
 | Layer | Technology |
 |-------|-----------|
-| Object Detection | YOLOv11 (Ultralytics) |
-| OCR | VietOCR (vgg_seq2seq) |
+| Receipt Analysis | Gemini Vision by default; YOLOv11 + VietOCR available as legacy mode |
 | Embeddings | sentence-transformers `all-MiniLM-L6-v2` |
 | Vector DB | ChromaDB (dev) → Milvus (prod) |
 | LLM | Gemini 2.5 Flash |

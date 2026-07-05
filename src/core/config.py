@@ -9,6 +9,7 @@ class Settings(BaseSettings):
 
     # LLM
     gemini_api_key: str = Field(default="", description="Google Gemini API key")
+    receipt_gemini_api_key: str = Field(default="", description="Gemini API key dedicated to receipt image analysis")
     gemini_model: str = Field(default="gemini-2.5-flash")
     gemma_model: str = Field(default="gemma-4-31b-it")
     gemma_timeout_seconds: float = Field(default=3.0, gt=0)
@@ -25,6 +26,7 @@ class Settings(BaseSettings):
     semantic_cache_enabled: bool = Field(default=False)
 
     # Vision model paths
+    receipt_analyzer: str = Field(default="gemini_vision")
     yolo_model_path: str = Field(default="src/models/yolo/receipt_items_yolov11s.pt")
     yolo_model_url: str = Field(default="")
     yolo_model_repo: str = Field(default="")

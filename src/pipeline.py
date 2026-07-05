@@ -20,8 +20,7 @@ from src.core.tool_result import ToolResult, ToolStatus
 from src.embedding.embedder import embed_text
 from src.llm.gemini_client import classify_receipt_items, generate_insight
 from src.models.expense import Insight, Receipt
-from src.vision.detector import detect_receipt
-from src.vision.ocr import extract_receipt
+from src.vision.gemini_receipt import extract_receipt_with_gemini
 
 log = structlog.get_logger()
 
@@ -44,6 +43,36 @@ def analyze_receipt_details(image_bytes: bytes) -> dict:
     Raises:
         PipelineError if any step returns status=error.
     """
+    cfg = get_settings()
+    analyzer = cfg.receipt_analyzer.strip().lower()
+    if analyzer in {"gemini", "gemini_vision"}:
+        return _analyze_with_gemini_vision(image_bytes)
+    if analyzer in {"yolo_vietocr", "yolo", "legacy"}:
+        return _analyze_with_yolo_vietocr(image_bytes)
+
+    raise PipelineError(
+        "config",
+        ToolResult.error(
+            summary="Unsupported receipt analyzer",
+            error_hint=f"RECEIPT_ANALYZER={cfg.receipt_analyzer!r} is not supported. Use gemini_vision or yolo_vietocr.",
+            next_actions=["Set RECEIPT_ANALYZER=gemini_vision", "Restart FastAPI"],
+        ),
+    )
+
+
+def _analyze_with_gemini_vision(image_bytes: bytes) -> dict:
+    log.info("pipeline.gemini_vision.start")
+    receipt_result = extract_receipt_with_gemini(image_bytes)
+    _require_ok(receipt_result, "gemini_vision")
+    receipt, fields, draft_items = _receipt_payload(receipt_result)
+    log.info("pipeline.gemini_vision.done", merchant=receipt.merchant, items=len(receipt.items), draft_items=len(draft_items))
+    return _complete_receipt_analysis(receipt, fields, draft_items)
+
+
+def _analyze_with_yolo_vietocr(image_bytes: bytes) -> dict:
+    from src.vision.detector import detect_receipt
+    from src.vision.ocr import extract_receipt
+
     # 1. Detect receipt region
     log.info("pipeline.detect.start")
     detect_result = detect_receipt(image_bytes)
@@ -77,29 +106,38 @@ def analyze_receipt_details(image_bytes: bytes) -> dict:
     ocr_result = extract_receipt(cropped, detections)
     _require_ok(ocr_result, "ocr")
 
-    ocr_payload = ocr_result.data
-    if isinstance(ocr_payload, dict):
-        receipt: Receipt = ocr_payload["receipt"]
-        fields: list[dict] = ocr_payload.get("fields", [])
-        draft_items: list[dict] = ocr_payload.get("draft_items", [])
-    else:
-        receipt = ocr_payload
-        fields = []
-        draft_items = [
-            {
-                "id": str(item.name),
-                "name": item.name,
-                "quantity": item.quantity,
-                "unit_price": item.unit_price,
-                "total_price": item.total_price,
-                "category": item.category,
-                "source_token_ids": {},
-            }
-            for item in receipt.items
-        ]
+    receipt, fields, draft_items = _receipt_payload(ocr_result)
     log.info("pipeline.ocr.done", merchant=receipt.merchant, items=len(receipt.items), draft_items=len(draft_items), fields=len(fields))
+    return _complete_receipt_analysis(receipt, fields, draft_items)
 
-    # 3. Classify every detected item name in a single Gemma request. This is
+
+def _receipt_payload(result: ToolResult) -> tuple[Receipt, list[dict], list[dict]]:
+    payload = result.data
+    if isinstance(payload, dict):
+        receipt: Receipt = payload["receipt"]
+        fields: list[dict] = payload.get("fields", [])
+        draft_items: list[dict] = payload.get("draft_items", [])
+        return receipt, fields, draft_items
+
+    receipt = payload
+    fields = []
+    draft_items = [
+        {
+            "id": str(item.name),
+            "name": item.name,
+            "quantity": item.quantity,
+            "unit_price": item.unit_price,
+            "total_price": item.total_price,
+            "category": item.category,
+            "source_token_ids": {},
+        }
+        for item in receipt.items
+    ]
+    return receipt, fields, draft_items
+
+
+def _complete_receipt_analysis(receipt: Receipt, fields: list[dict], draft_items: list[dict]) -> dict:
+    # Classify every detected item name in a single Gemma request. This is
     # non-fatal because users can still correct categories in the review UI.
     log.info("pipeline.classify_items.start", items=len(draft_items))
     classify_result = classify_receipt_items(draft_items)
@@ -109,20 +147,20 @@ def analyze_receipt_details(image_bytes: bytes) -> dict:
         log.warning("pipeline.classify_items.warning", hint=classify_result.error_hint)
     _apply_item_categories(receipt, draft_items, classify_result.data if isinstance(classify_result.data, dict) else {})
 
-    # 4. Embed canonical text
+    cfg = get_settings()
+    if not cfg.semantic_cache_enabled:
+        log.info("pipeline.cache.skipped")
+        insight = _generate_and_store(receipt, None, skip_store=True)
+        return _details_payload(receipt, insight, fields, draft_items)
+
+    # Embed canonical text only when semantic cache is enabled.
     log.info("pipeline.embed.start")
     embed_result = embed_text(receipt.canonical_text)
     _require_ok(embed_result, "embed")
 
     vector: list[float] = embed_result.data
 
-    cfg = get_settings()
-    if not cfg.semantic_cache_enabled:
-        log.info("pipeline.cache.skipped")
-        insight = _generate_and_store(receipt, vector, skip_store=True)
-        return _details_payload(receipt, insight, fields, draft_items)
-
-    # 5. Cache lookup
+    # Cache lookup
     log.info("pipeline.cache.lookup")
     lookup_result = cache_lookup(vector, str(receipt.id))
 
@@ -136,7 +174,7 @@ def analyze_receipt_details(image_bytes: bytes) -> dict:
         log.info("pipeline.cache.hit", similarity=lookup_result.data.similarity_score)
         return _details_payload(receipt, lookup_result.data, fields, draft_items)
 
-    # 6. Cache miss → generate insight
+    # Cache miss → generate insight
     log.info("pipeline.cache.miss")
     insight = _generate_and_store(receipt, vector)
     return _details_payload(receipt, insight, fields, draft_items)
@@ -172,13 +210,13 @@ def _class_counts(detections: list[dict]) -> dict[str, int]:
     return counts
 
 
-def _generate_and_store(receipt: Receipt, vector: list[float], *, skip_store: bool = False) -> Insight:
+def _generate_and_store(receipt: Receipt, vector: list[float] | None, *, skip_store: bool = False) -> Insight:
     gen_result = generate_insight(receipt)
     _require_ok(gen_result, "generate")
 
     insight: Insight = gen_result.data
 
-    if not skip_store:
+    if not skip_store and vector is not None:
         store_result = cache_store(vector, insight)
         if store_result.failed:
             # Non-fatal: log and continue — user still gets the insight
