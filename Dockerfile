@@ -13,10 +13,11 @@ FROM python:3.13-slim
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Runtime system libs:
-#   libglib2.0-0 — required by opencv-python-headless
+#   libglib2.0-0 — required by OpenCV
+#   libgl1/libsm6/libxext6 — required by ultralytics -> opencv-python on slim images
 #   libgomp1     — OpenMP runtime for torch / onnxruntime
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libglib2.0-0 libgomp1 \
+    && apt-get install -y --no-install-recommends libglib2.0-0 libgl1 libsm6 libxext6 libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -36,6 +37,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 # 2) Copy source and install the project itself.
 COPY . .
 RUN uv sync --frozen --no-dev
+RUN ./.venv/bin/python -c "from ultralytics import YOLO; print('ultralytics import ok')"
 
 # Put the venv on PATH so `uvicorn` resolves without `uv run`.
 ENV PATH="/app/.venv/bin:$PATH"

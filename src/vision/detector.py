@@ -360,5 +360,5 @@ def _load_yolo(model_path: str):
     try:
         from ultralytics import YOLO
     except Exception as exc:
-        raise RuntimeError("ultralytics is required to load YOLOv11 weights") from exc
+        raise RuntimeError(f"Cannot import ultralytics YOLO: {type(exc).__name__}: {exc}") from exc
     return YOLO(model_path)
