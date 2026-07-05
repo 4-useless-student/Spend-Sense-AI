@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     yolo_model_filename: str = Field(default="receipt_items_yolov11s.pt")
     yolo_model_revision: str = Field(default="main")
     yolo_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    vietocr_config_name: str = Field(default="vgg_seq2seq")
     hf_token: str = Field(default="")
 
     # Embedding

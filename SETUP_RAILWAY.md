@@ -57,6 +57,7 @@ YOLO_MODEL_URL=https://raw.githubusercontent.com/4-useless-student/Spend-Sense-A
 YOLO_MODEL_REPO=
 YOLO_MODEL_FILENAME=receipt_items_yolov11s.pt
 YOLO_MODEL_REVISION=main
+VIETOCR_CONFIG_NAME=vgg_seq2seq
 EMBEDDING_MODEL=all-MiniLM-L6-v2
 API_HOST=0.0.0.0
 DEBUG=false

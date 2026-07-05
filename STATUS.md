@@ -13,7 +13,7 @@ Current stack:
 
 - Backend: FastAPI in `src/`, ASGI entrypoint `main.py`.
 - Frontend: React + TypeScript + Vite in `frontend/`.
-- Vision/OCR: YOLO/Ultralytics detection + VietOCR (`vgg_transformer`) text extraction.
+- Vision/OCR: YOLO/Ultralytics detection + VietOCR (`vgg_seq2seq`) text extraction.
 - LLM: Gemini/Gemma REST calls through `GEMINI_API_KEY`.
 - Database: PostgreSQL through SQLAlchemy async engine. Alembic manages schema migrations.
 
@@ -66,7 +66,7 @@ Resolved (2026-05-31):
 
 Implemented (2026-05-28) in `src/vision/ocr.py`:
 
-- OCR now loads the real `vgg_transformer` VietOCR model (`vietocr>=0.3.7`).
+- OCR now loads the real `vgg_seq2seq` VietOCR model (`vietocr>=0.3.7`).
 - Predictor is loaded once via `@lru_cache` (singleton).
 - Pillow 10 compatibility patch: `PIL.Image.ANTIALIAS = PIL.Image.LANCZOS` applied before loading VietOCR to avoid `AttributeError`.
 - Full-image OCR path (`_run_ocr`):
@@ -217,7 +217,7 @@ Implemented (2026-05-31) in `main.py`:
 
 - A FastAPI `lifespan` context manager runs `_warm_up_models()` before serving requests.
 - `_warm_up_models()` calls `warm_up_detector()` (`src/vision/detector.py`) and `warm_up_ocr()` (`src/vision/ocr.py`), each wrapped in try/except that only logs a warning on failure.
-- This loads YOLO weights and the VietOCR `vgg_transformer` predictor up front so the first `/receipts/analyze` request is not slowed by cold loading.
+- This loads YOLO weights and the VietOCR `vgg_seq2seq` predictor up front so the first `/receipts/analyze` request is not slowed by cold loading.
 
 ### Receipt Reconstruction Improvements
 
@@ -322,7 +322,7 @@ Important files:
 - `src/core/stress_tester.py` - Deterministic market-shock simulation + Gemini hedging advisory.
 - `src/pipeline.py` - Receipt analysis pipeline.
 - `src/vision/detector.py` - YOLO detector with local/Hugging Face model loading.
-- `src/vision/ocr.py` - VietOCR field OCR (`vgg_transformer`, field-level and full-image paths).
+- `src/vision/ocr.py` - VietOCR field OCR (`vgg_seq2seq`, field-level and full-image paths).
 - `src/vision/reconstructor.py` - Receipt row reconstruction.
 - `src/llm/gemini_client.py` - Gemini/Gemma REST client and fallback category classifier.
 - `src/cache/vector_store.py` - ChromaDB semantic cache client.
@@ -392,7 +392,7 @@ Flow:
 ```text
 Image upload
 -> YOLO detect fields
--> VietOCR per field crop  (real model, vgg_transformer)
+-> VietOCR per field crop  (real model, vgg_seq2seq)
 -> reconstruct receipt rows
 -> classify item categories (Gemma or keyword fallback)
 -> embed/cached insight path

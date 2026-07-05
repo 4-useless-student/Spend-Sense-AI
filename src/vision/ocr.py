@@ -1,5 +1,5 @@
 """
-OCR extractor — VietOCR (vgg_transformer) for both field-level and full-image paths.
+OCR extractor — VietOCR for both field-level and full-image paths.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from functools import lru_cache
 from io import BytesIO
 from typing import Any
 
+from src.core.config import get_settings
 from src.core.tool_result import ToolResult
 from src.models.expense import Receipt, ReceiptItem
 from src.vision.reconstructor import reconstruct_receipt
@@ -473,7 +474,7 @@ def _vietocr_predictor():
     from vietocr.tool.config import Cfg
     from vietocr.tool.predictor import Predictor
 
-    config = Cfg.load_config_from_name("vgg_transformer")
+    config = Cfg.load_config_from_name(get_settings().vietocr_config_name)
     config["device"] = "cpu"
     return Predictor(config)
 
