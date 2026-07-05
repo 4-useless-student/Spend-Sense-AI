@@ -1,8 +1,8 @@
 # SpendSense AI — FastAPI backend (Application Server node in docs/deployment.md).
 #
 # Runs uvicorn :8080 with the AI models (YOLOv11, VietOCR, all-MiniLM) in-process.
-# The bundled YOLO receipt detector is baked into the image. Other model
-# caches still live under /app/.cache at runtime.
+# Model weights can be bundled in the repo or downloaded at runtime via
+# YOLO_MODEL_URL / YOLO_MODEL_REPO and cached under /app/.cache.
 #
 # Note: sentence-transformers / vietocr / ultralytics pull in PyTorch, so the
 # resulting image is large (multiple GB). Build expects a populated uv.lock.
@@ -35,8 +35,6 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 # 2) Copy source and install the project itself.
 COPY . .
-RUN test -f src/models/yolo/receipt_items_yolov11s.pt \
-    || (echo "Missing YOLO model: src/models/yolo/receipt_items_yolov11s.pt" && exit 1)
 RUN uv sync --frozen --no-dev
 
 # Put the venv on PATH so `uvicorn` resolves without `uv run`.

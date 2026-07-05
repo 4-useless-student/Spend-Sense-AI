@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import uuid
+import shutil
 from dataclasses import dataclass
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
+from urllib.request import urlopen
 
 import structlog
 
@@ -47,18 +50,18 @@ def detect_receipt(image_bytes: bytes) -> ToolResult:
             summary="YOLOv11 model is not configured",
             error_hint=(
                 "Cannot find receipt_items_yolov11s.pt. Put it at "
-                "src/models/yolo/receipt_items_yolov11s.pt or set YOLO_MODEL_PATH to the .pt file."
+                "src/models/yolo/receipt_items_yolov11s.pt or set YOLO_MODEL_URL / YOLO_MODEL_REPO."
             ),
-            next_actions=["Fix YOLO_MODEL_PATH", "Restart FastAPI", "Retry analysis"],
+            next_actions=["Fix YOLO model config", "Restart FastAPI", "Retry analysis"],
         )
     except Exception as exc:
         return ToolResult.error(
             summary="YOLOv11 inference failed",
             error_hint=(
                 f"{type(exc).__name__}: {exc}. Check YOLO_MODEL_PATH or "
-                "YOLO_MODEL_REPO/YOLO_MODEL_FILENAME."
+                "YOLO_MODEL_URL or YOLO_MODEL_REPO/YOLO_MODEL_FILENAME."
             ),
-            next_actions=["Verify model file exists", "Verify Hugging Face repo/file/token", "Retry analysis"],
+            next_actions=["Verify model file exists", "Verify model URL/repo/token", "Retry analysis"],
         )
 
     classes = _class_counts(detections)
@@ -100,6 +103,7 @@ def warm_up_detector() -> dict[str, Any]:
     cfg = get_settings()
     model_path = _resolve_model_path(
         cfg.yolo_model_path,
+        cfg.yolo_model_url,
         cfg.yolo_model_repo,
         cfg.yolo_model_filename,
         cfg.yolo_model_revision,
@@ -115,6 +119,7 @@ def _run_model(image_bytes: bytes) -> tuple[list[dict], bytes, dict[str, Any]]:
     cfg = get_settings()
     model_path = _resolve_model_path(
         cfg.yolo_model_path,
+        cfg.yolo_model_url,
         cfg.yolo_model_repo,
         cfg.yolo_model_filename,
         cfg.yolo_model_revision,
@@ -289,6 +294,7 @@ def _class_counts(detections: list[dict]) -> dict[str, int]:
 
 def _resolve_model_path(
     local_path: str,
+    model_url: str,
     repo_id: str,
     filename: str,
     revision: str,
@@ -309,6 +315,9 @@ def _resolve_model_path(
         if candidate.exists() and candidate.is_file():
             return str(candidate.resolve())
 
+    if model_url:
+        return _download_model_from_url(model_url, filename)
+
     if not repo_id or not filename:
         raise NotImplementedError
 
@@ -323,6 +332,27 @@ def _resolve_model_path(
         revision=revision or "main",
         token=token or None,
     )
+
+
+def _download_model_from_url(model_url: str, filename: str) -> str:
+    parsed = urlparse(model_url)
+    cache_name = filename or Path(unquote(parsed.path)).name or "receipt_items_yolov11s.pt"
+    cache_path = Path.cwd() / ".cache" / "models" / "yolo" / cache_name
+    if cache_path.exists() and cache_path.is_file() and cache_path.stat().st_size > 0:
+        return str(cache_path.resolve())
+
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
+    try:
+        with urlopen(model_url, timeout=120) as response, tmp_path.open("wb") as output:
+            shutil.copyfileobj(response, output)
+        if tmp_path.stat().st_size <= 0:
+            raise RuntimeError(f"Downloaded empty YOLO model from {model_url}")
+        tmp_path.replace(cache_path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    return str(cache_path.resolve())
 
 
 @lru_cache

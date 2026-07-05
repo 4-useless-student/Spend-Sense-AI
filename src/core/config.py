@@ -26,6 +26,7 @@ class Settings(BaseSettings):
 
     # Vision model paths
     yolo_model_path: str = Field(default="src/models/yolo/receipt_items_yolov11s.pt")
+    yolo_model_url: str = Field(default="")
     yolo_model_repo: str = Field(default="")
     yolo_model_filename: str = Field(default="receipt_items_yolov11s.pt")
     yolo_model_revision: str = Field(default="main")
