@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import html
 import asyncio
-import csv
-import io
 import re
 import time
 import xml.etree.ElementTree as ET
@@ -28,12 +26,23 @@ _COINGECKO_IDS = {
     "USDT": "tether",
 }
 
-_STOOQ_SYMBOLS = {
-    "S&P 500": "^spx",
-    "NASDAQ": "^ndq",
-    "DOW JONES": "^dji",
-    "GOLD": "xauusd",
-    "USD INDEX": "dx.f",
+_PUBLIC_ERROR_MESSAGES = {
+    "crypto": "Du lieu crypto tam thoi khong kha dung.",
+    "global": "Du lieu chi so quoc te tam thoi khong kha dung.",
+    "news": "Tin thi truong tam thoi khong kha dung.",
+}
+
+_TRADINGVIEW_COLUMNS = ["close", "change", "change_abs", "currency", "update_mode"]
+_TRADINGVIEW_SYMBOLS = {
+    "america": {
+        "S&P 500": "SP:SPX",
+        "NASDAQ": "NASDAQ:NDX",
+        "DOW JONES": "DJ:DJI",
+        "USD INDEX": "TVC:DXY",
+    },
+    "cfd": {
+        "GOLD": "TVC:GOLD",
+    },
 }
 
 _VIETSTOCK_FEEDS = {
@@ -141,7 +150,13 @@ async def _fetch_crypto_market() -> dict[str, Any]:
         }
     except Exception as exc:
         log.warning("market_context.crypto.failed", error=str(exc))
-        result = {"source": "coingecko", "majors": [], "top_gainers": [], "top_losers": [], "error": str(exc)}
+        result = {
+            "source": "coingecko",
+            "majors": [],
+            "top_gainers": [],
+            "top_losers": [],
+            "error": _PUBLIC_ERROR_MESSAGES["crypto"],
+        }
     _set_cached("crypto-market", result)
     return result
 
@@ -154,45 +169,80 @@ async def _fetch_global_market() -> dict[str, Any]:
     try:
         async with httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "SpendSenseAI/1.0"}) as client:
             rows = await asyncio.gather(
-                *[_fetch_one_stooq_quote(client, label, symbol) for label, symbol in _STOOQ_SYMBOLS.items()],
+                *[_fetch_tradingview_market(client, market, symbols) for market, symbols in _TRADINGVIEW_SYMBOLS.items()],
                 return_exceptions=True,
             )
-        indices = [row for row in rows if isinstance(row, dict) and row.get("price") is not None]
-        errors = [str(row) for row in rows if isinstance(row, Exception)]
+        indices: list[dict[str, Any]] = []
+        errors: list[str] = []
+        for row in rows:
+            if isinstance(row, Exception):
+                errors.append(str(row))
+                continue
+            market_indices, market_errors = row
+            indices.extend(market_indices)
+            errors.extend(market_errors)
         result = {
-            "source": "stooq_public_csv",
+            "source": "tradingview_scanner",
             "indices": indices,
-            "change_basis": "change and change_percent are estimated versus the current session open from Stooq CSV.",
-            "error": "; ".join(errors) if errors else None,
+            "change_basis": "change and change_percent are reported by TradingView scanner.",
+            "error": _PUBLIC_ERROR_MESSAGES["global"] if not indices else None,
         }
+        if errors:
+            log.warning("market_context.global.partial_failed", errors=errors)
     except Exception as exc:
         log.warning("market_context.global.failed", error=str(exc))
-        result = {"source": "stooq_public_csv", "indices": [], "error": str(exc)}
+        result = {
+            "source": "tradingview_scanner",
+            "indices": [],
+            "change_basis": "change and change_percent are reported by TradingView scanner.",
+            "error": _PUBLIC_ERROR_MESSAGES["global"],
+        }
     _set_cached("global-market", result)
     return result
 
 
-async def _fetch_one_stooq_quote(client: httpx.AsyncClient, label: str, symbol: str) -> dict[str, Any]:
-    response = await client.get(
-        "https://stooq.com/q/l/",
-        params={"s": symbol, "f": "sd2t2ohlcv", "h": "", "e": "csv"},
+async def _fetch_tradingview_market(
+    client: httpx.AsyncClient,
+    market: str,
+    symbols: dict[str, str],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    response = await client.post(
+        f"https://scanner.tradingview.com/{market}/scan",
+        json={
+            "symbols": {"tickers": list(symbols.values()), "query": {"types": []}},
+            "columns": _TRADINGVIEW_COLUMNS,
+        },
     )
     response.raise_for_status()
-    reader = csv.DictReader(io.StringIO(response.text))
-    row = next(reader, None) or {}
-    price = _as_float(row.get("Close"))
-    open_price = _as_float(row.get("Open"))
-    change = price - open_price if price is not None and open_price is not None else None
-    change_percent = change / open_price * 100 if change is not None and open_price else None
-    return {
-        "symbol": label,
-        "price": price,
-        "change": _round(change),
-        "change_percent": _round(change_percent),
-        "currency": "USD" if label == "GOLD" else "POINT",
-        "as_of": _stooq_datetime(row),
-        "source": "stooq_public_csv",
-    }
+    payload = response.json()
+    ticker_to_label = {ticker: label for label, ticker in symbols.items()}
+    rows: list[dict[str, Any]] = []
+    found: set[str] = set()
+
+    for item in payload.get("data") or []:
+        ticker = item.get("s")
+        values = item.get("d") or []
+        label = ticker_to_label.get(ticker)
+        if not label:
+            continue
+        found.add(label)
+        price = _as_float(_list_get(values, 0))
+        if price is None:
+            continue
+        currency = str(_list_get(values, 3) or "").upper() or ("USD" if label in {"GOLD", "USD INDEX"} else "POINT")
+        rows.append({
+            "symbol": label,
+            "price": price,
+            "change": _round(_as_float(_list_get(values, 2))),
+            "change_percent": _round(_as_float(_list_get(values, 1))),
+            "currency": currency,
+            "as_of": datetime.utcnow().isoformat(),
+            "source": "tradingview_scanner",
+        })
+
+    missing = [label for label in symbols if label not in found]
+    errors = [f"{market}: missing {', '.join(missing)}"] if missing else []
+    return rows, errors
 
 
 async def _fetch_vietstock_news() -> dict[str, Any]:
@@ -216,7 +266,13 @@ async def _fetch_vietstock_news() -> dict[str, Any]:
         if error:
             errors.append(error)
     deduped = _dedupe_news(items)[:10]
-    result = {"source": "vietstock_rss", "items": deduped, "error": "; ".join(errors) if errors else None}
+    if errors:
+        log.warning("market_context.vietstock.partial_failed", errors=errors)
+    result = {
+        "source": "vietstock_rss",
+        "items": deduped,
+        "error": _PUBLIC_ERROR_MESSAGES["news"] if errors and not deduped else None,
+    }
     _set_cached("vietstock-news", result)
     return result
 
@@ -314,14 +370,8 @@ def _parse_rss_date(value: str | None) -> datetime | None:
         return None
 
 
-def _stooq_datetime(row: dict[str, Any]) -> str | None:
-    date_part = str(row.get("Date") or "")
-    time_part = str(row.get("Time") or "")
-    if not date_part or date_part == "N/D":
-        return None
-    if not time_part or time_part == "N/D":
-        return date_part
-    return f"{date_part}T{time_part}"
+def _list_get(values: list[Any], index: int) -> Any | None:
+    return values[index] if index < len(values) else None
 
 
 def _as_float(value: Any) -> float | None:

@@ -101,9 +101,11 @@ function TradingViewPanel({
 function MarketSnapshot({
   data,
   onRefresh,
+  refreshing,
 }: Readonly<{
   data: MarketIntelligence;
   onRefresh: () => void;
+  refreshing: boolean;
 }>) {
   const context = data.market_context;
 
@@ -113,23 +115,25 @@ function MarketSnapshot({
         <div>
           <h1 className="font-heading text-h2-kpi text-stitch-on-surface">Tin tức mới nhất</h1>
           <p className="text-body-lg text-stitch-on-surface-variant mt-1">
-            Dữ liệu được lấy trực tiếp từ vnstock, CoinGecko, Stooq và Vietstock RSS.
+            Dữ liệu được lấy trực tiếp từ vnstock, CoinGecko, TradingView và Vietstock RSS.
           </p>
         </div>
-        <button onClick={onRefresh} className="btn-outline flex items-center gap-2 w-fit">
-          <RefreshCw className="w-4 h-4" />
-          Làm mới
+        <button onClick={onRefresh} disabled={refreshing} className="btn-outline flex items-center gap-2 w-fit disabled:opacity-70">
+          <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+          {refreshing ? "Đang làm mới" : "Làm mới"}
         </button>
       </div>
 
       
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-lg">
+      <div className={`grid grid-cols-1 xl:grid-cols-2 gap-lg transition-opacity duration-300 ${refreshing ? "opacity-70 animate-pulse" : "opacity-100"}`}>
         <GlobalMarketPanel data={context.global_market.indices} error={context.global_market.error} />
         <CryptoDataPanel data={context.crypto_market.majors} error={context.crypto_market.error} />
       </div>
 
-      <MarketNewsPanel items={context.news.items} error={context.news.error} />
+      <div className={`transition-opacity duration-300 ${refreshing ? "opacity-70 animate-pulse" : "opacity-100"}`}>
+        <MarketNewsPanel items={context.news.items} error={context.news.error} />
+      </div>
     </div>
   );
 }
@@ -231,6 +235,7 @@ function MarketNewsPanel({
 function VietnamMarketTable({
   data,
   loading,
+  refreshing,
   error,
   onRefresh,
   onGroupChange,
@@ -240,6 +245,7 @@ function VietnamMarketTable({
 }: Readonly<{
   data: MarketSymbol[] | null;
   loading: boolean;
+  refreshing: boolean;
   error: string | null;
   onRefresh: () => void;
   onGroupChange: (group: VNMarketGroup) => void;
@@ -271,9 +277,9 @@ function VietnamMarketTable({
           <h3 className="section-title">Thị trường Việt Nam</h3>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full xl:w-auto">
-          <button onClick={onRefresh} className="btn-outline flex items-center justify-center gap-2">
-            <RefreshCw className="w-4 h-4" />
-            Làm mới
+          <button onClick={onRefresh} disabled={refreshing} className="btn-outline flex items-center justify-center gap-2 disabled:opacity-70">
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Đang làm mới" : "Làm mới"}
           </button>
         </div>
       </div>
@@ -302,15 +308,20 @@ function VietnamMarketTable({
         <MarketMiniStat label="Mạnh nhất / Yếu nhất" value={strongest && weakest ? `${strongest.symbol} / ${weakest.symbol}` : "-"} />
       </div>
 
-      {loading && <div className="py-10 text-center text-stitch-on-surface-variant">Đang tải bảng giá Việt Nam...</div>}
-      {error && <div className="py-8 text-danger">{error}</div>}
+      {loading && !visibleRows.length && <div className="py-10 text-center text-stitch-on-surface-variant">Đang tải bảng giá Việt Nam...</div>}
+      {error && !visibleRows.length && <div className="py-8 text-danger">{error}</div>}
+      {error && visibleRows.length > 0 && (
+        <div className="mb-3 text-sm text-stitch-on-surface-variant">
+          Đang hiển thị dữ liệu đã lưu gần nhất. Cập nhật mới chưa hoàn tất.
+        </div>
+      )}
       {!loading && !error && !visibleRows.length && (
         <div className="py-10 text-center text-stitch-on-surface-variant">
           Chưa có mã nào lấy được dữ liệu giá. Hãy thử mã khác hoặc kiểm tra nguồn vnstock/FireAnt.
         </div>
       )}
-      {!loading && !error && visibleRows.length > 0 && (
-        <div className="overflow-x-auto">
+      {visibleRows.length > 0 && (
+        <div className={`overflow-x-auto transition-opacity duration-300 ${refreshing ? "opacity-70 animate-pulse" : "opacity-100"}`}>
           <table className="w-full min-w-[900px] text-sm">
             <thead>
               <tr className="border-b border-stitch-outline-variant text-left text-stitch-on-surface-variant">
@@ -434,12 +445,23 @@ export function MarketPage() {
     overview.reload();
     vnMarket.reload();
   };
+  const isRefreshing = overview.refreshing || vnMarket.refreshing;
+  const [showRefreshEffect, setShowRefreshEffect] = useState(false);
+
+  useEffect(() => {
+    if (isRefreshing) {
+      setShowRefreshEffect(true);
+      return;
+    }
+    const timeoutId = window.setTimeout(() => setShowRefreshEffect(false), 700);
+    return () => window.clearTimeout(timeoutId);
+  }, [isRefreshing]);
 
   if (overview.loading && !overview.data) {
     return <div className="py-20 text-center text-stitch-on-surface-variant">Đang tải tin tức...</div>;
   }
 
-  if (overview.error || !overview.data) {
+  if (!overview.data) {
     return (
       <div className="py-20 text-center space-y-3">
         <p className="text-danger">{overview.error ?? "Không tải được dữ liệu thị trường."}</p>
@@ -450,14 +472,22 @@ export function MarketPage() {
 
   return (
     <div className="space-y-xxl">
+      {showRefreshEffect && (
+        <div className="sticky top-0 z-10 -mb-lg rounded-md bg-blue-50 px-4 py-2 text-sm font-medium text-brand-blue-dark shadow-sm">
+          Đang cập nhật dữ liệu thị trường...
+        </div>
+      )}
+
       <MarketSnapshot
         data={overview.data}
         onRefresh={refreshAll}
+        refreshing={showRefreshEffect}
       />
 
       <VietnamMarketTable
         data={vnMarket.data}
         loading={vnMarket.loading}
+        refreshing={showRefreshEffect || vnMarket.refreshing}
         error={vnMarket.error}
         onRefresh={vnMarket.reload}
         onGroupChange={setVnGroup}

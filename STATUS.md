@@ -250,7 +250,7 @@ Implemented (2026-06-01):
 - Data sources without API keys:
   - Vietnam stocks: `vnstock`/existing backend quote service, with fallback behavior.
   - Crypto: CoinGecko public API.
-  - Global indices/commodities: Stooq public CSV (`S&P 500`, `NASDAQ`, `DOW JONES`, `GOLD`, `USD INDEX`).
+  - Global indices/commodities: TradingView scanner (`S&P 500`, `NASDAQ`, `DOW JONES`, `GOLD`, `USD INDEX`).
   - News: Vietstock RSS feeds.
 - Frontend renders:
   - Market source/summary stats.
@@ -265,7 +265,7 @@ Implemented (2026-06-01):
 
 Known limitations:
 
-- TradingView widgets are visual-only and are not used as backend data sources.
+- TradingView widgets are visual-only; backend market context also uses TradingView scanner for global indices.
 - Public providers can rate-limit or fail; the UI shows partial-source status instead of invoking AI fallback.
 - Vietnam market data is still limited by `vnstock`/provider coverage and the current predefined groups.
 
@@ -318,7 +318,7 @@ Important files:
 - `src/api/routes/investment.py` - Investment profile, portfolio CRUD, and stress-test endpoints.
 - `src/api/routes/market.py` - Market dashboard endpoints.
 - `src/core/market_data.py` - Real-time market prices (vnstock / Binance / SJC), normalized to VND.
-- `src/services/market_context_service.py` - Market dashboard context from vnstock/backend quotes, CoinGecko, Stooq, and Vietstock RSS.
+- `src/services/market_context_service.py` - Market dashboard context from vnstock/backend quotes, CoinGecko, TradingView, and Vietstock RSS.
 - `src/core/stress_tester.py` - Deterministic market-shock simulation + Gemini hedging advisory.
 - `src/pipeline.py` - Receipt analysis pipeline.
 - `src/vision/detector.py` - YOLO detector with local/Hugging Face model loading.
@@ -517,14 +517,14 @@ Behavior:
 - Sources:
   - Vietnam quotes from backend market service (`vnstock` first when no FireAnt key).
   - Crypto majors from CoinGecko public API.
-  - Global indices/commodities from Stooq public CSV.
+  - Global indices/commodities from TradingView scanner.
   - Financial news from Vietstock RSS.
 - Market data is cached on both the frontend hook layer and the backend service layer to reduce reload time when switching tabs.
 
 Known limitations:
 
 - Public data providers can fail or return delayed values.
-- Global market `change` and `change_percent` from Stooq are estimated against the current session open.
+- Global market `change` and `change_percent` are reported by TradingView scanner.
 - No AI market commentary or chat is currently active by design.
 
 ---
@@ -780,7 +780,7 @@ Returns direct market context:
       "top_losers": []
     },
     "crypto_market": { "source": "coingecko", "majors": [], "top_gainers": [], "top_losers": [], "error": null },
-    "global_market": { "source": "stooq_public_csv", "indices": [], "error": null },
+    "global_market": { "source": "tradingview_scanner", "indices": [], "error": null },
     "news": { "source": "vietstock_rss", "items": [], "error": null },
     "source_quality": { "missing_or_partial": [], "policy": "..." }
   }
@@ -924,7 +924,7 @@ Known test gap:
 - Google OAuth setup must be done manually in Google Cloud.
 - Investment portfolio growth curve is mock history (frontend only).
 - Investment market data depends on external sources (vnstock / Binance / SJC) with hardcoded fallbacks; live prices can be stale or rate-limited.
-- Market dashboard depends on public external sources (vnstock/backend quotes, CoinGecko, Stooq, Vietstock RSS); values can be delayed, missing, or rate-limited.
+- Market dashboard depends on public external sources (vnstock/backend quotes, CoinGecko, TradingView, Vietstock RSS); values can be delayed, missing, or rate-limited.
 
 ### P2
 
