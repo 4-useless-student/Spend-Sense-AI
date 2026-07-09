@@ -1,0 +1,89 @@
+{
+  "test_case": "TC-UC08-06",
+  "defect": "DEF-001",
+  "tested_at": "2026-07-09T10:29:28.252Z",
+  "deployment_url": "https://spend-sense-ai-bcje.vercel.app/",
+  "commit": "4db5659",
+  "bundle": "index-CqykTSsP.js",
+  "browser": "Google Chrome",
+  "runs": [
+    {
+      "range": "today",
+      "ordinal": 1,
+      "started_at": "2026-07-09T10:29:01.078Z",
+      "completed_at": "2026-07-09T10:29:11.577Z",
+      "elapsed_ms": 10063,
+      "http_status": 200,
+      "request_url": "https://spend-sense-ai-bcje.vercel.app/api/reports/summary?range=today",
+      "timeout_at_10s": false,
+      "modal_has_report": true,
+      "response_fields": {
+        "income": "number",
+        "expense": "number",
+        "net": "number",
+        "saving_rate": "number"
+      },
+      "screenshot": "qa/evidence/def001-retest-today-1-2026-07-09T10-28-53-027Z.png"
+    },
+    {
+      "range": "today",
+      "ordinal": 2,
+      "started_at": "2026-07-09T10:29:11.578Z",
+      "completed_at": "2026-07-09T10:29:14.236Z",
+      "elapsed_ms": 2318,
+      "http_status": 200,
+      "request_url": "https://spend-sense-ai-bcje.vercel.app/api/reports/summary?range=today",
+      "timeout_at_10s": false,
+      "modal_has_report": true,
+      "response_fields": {
+        "income": "number",
+        "expense": "number",
+        "net": "number",
+        "saving_rate": "number"
+      },
+      "screenshot": "qa/evidence/def001-retest-today-2-2026-07-09T10-28-53-027Z.png"
+    },
+    {
+      "range": "today",
+      "ordinal": 3,
+      "started_at": "2026-07-09T10:29:14.236Z",
+      "completed_at": "2026-07-09T10:29:25.138Z",
+      "elapsed_ms": 10519,
+      "http_status": 200,
+      "request_url": "https://spend-sense-ai-bcje.vercel.app/api/reports/summary?range=today",
+      "timeout_at_10s": false,
+      "modal_has_report": true,
+      "response_fields": {
+        "income": "number",
+        "expense": "number",
+        "net": "number",
+        "saving_rate": "number"
+      },
+      "screenshot": "qa/evidence/def001-retest-today-3-2026-07-09T10-28-53-027Z.png"
+    },
+    {
+      "range": "7d",
+      "ordinal": 1,
+      "started_at": "2026-07-09T10:29:25.138Z",
+      "completed_at": "2026-07-09T10:29:28.251Z",
+      "elapsed_ms": 2781,
+      "http_status": 200,
+      "request_url": "https://spend-sense-ai-bcje.vercel.app/api/reports/summary?range=7d",
+      "timeout_at_10s": false,
+      "modal_has_report": true,
+      "response_fields": {
+        "income": "number",
+        "expense": "number",
+        "net": "number",
+        "saving_rate": "number"
+      },
+      "screenshot": "qa/evidence/def001-retest-7d-1-2026-07-09T10-28-53-027Z.png"
+    }
+  ],
+  "console_errors": [
+    "Failed to load resource: the server responded with a status of 403 ()",
+    "[GSI_LOGGER]: The given origin is not allowed for the given client ID."
+  ],
+  "severe_console_errors": [],
+  "passed": true
+}
