@@ -1,8 +1,7 @@
 const ENV_API_URL = import.meta.env.VITE_API_URL as string | undefined;
 const IS_PROD = import.meta.env.PROD;
-const REQUEST_TIMEOUT_MS = Number(import.meta.env.VITE_TIMEOUT_MS ?? 30000);
+const REQUEST_TIMEOUT_MS = Number(import.meta.env.VITE_TIMEOUT_MS ?? 15000);
 const RECEIPT_ANALYZE_TIMEOUT_MS = Number(import.meta.env.VITE_RECEIPT_TIMEOUT_MS ?? 120000);
-const FINANCIAL_REPORT_TIMEOUT_MS = Number(import.meta.env.VITE_REPORT_TIMEOUT_MS ?? 60000);
 const API_URLS = ENV_API_URL
   ? [ENV_API_URL]
   : IS_PROD
@@ -10,6 +9,7 @@ const API_URLS = ENV_API_URL
     : ["http://localhost:8080", "http://127.0.0.1:8080"];
 export const TOKEN_KEY = "spendsense_token";
 export const USER_KEY = "spendsense_user";
+export const TRANSACTIONS_CHANGED_EVENT = "spendsense:transactions-changed";
 
 export interface AuthUser {
   id: string;
@@ -167,21 +167,25 @@ export async function analyzeReceipt(file: File): Promise<AnalyzeReceiptResult> 
 export async function createTransaction(payload: CreateTransactionPayload): Promise<unknown> {
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) throw new Error("Bạn cần đăng nhập trước khi lưu giao dịch.");
-  return request<unknown>("/transactions", {
+  const result = await request<unknown>("/transactions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(payload),
   });
+  window.dispatchEvent(new Event(TRANSACTIONS_CHANGED_EVENT));
+  return result;
 }
 
 export async function updateTransaction(transactionId: string, payload: UpdateTransactionPayload): Promise<TransactionRecord> {
-  return request<TransactionRecord>(`/transactions/${transactionId}`, {
+  const result = await request<TransactionRecord>(`/transactions/${transactionId}`, {
     method: "PATCH",
     headers: authHeader(),
     body: JSON.stringify(payload),
   });
+  window.dispatchEvent(new Event(TRANSACTIONS_CHANGED_EVENT));
+  return result;
 }
 
 async function postReceipt(file: File): Promise<AnalyzeReceiptResult> {
@@ -619,9 +623,6 @@ export async function listTransactions(limit = 200, offset = 0, includeTotal = f
 export async function getFinancialReport(range: ReportRange): Promise<FinancialReport> {
   return request<FinancialReport>(`/reports/summary?range=${range}`, {
     headers: authHeader(),
-  }, {
-    timeoutMs: FINANCIAL_REPORT_TIMEOUT_MS,
-    timeoutMessage: "Không thể tạo báo cáo tài chính trong 60 giây. Vui lòng thử lại.",
   });
 }
 

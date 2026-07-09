@@ -762,7 +762,7 @@ export function AddTransactionModal({ open, onClose }: Readonly<AddTransactionMo
                   className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Áp dụng vào giao dịch
+                  Lưu vào giao dịch
                 </button>
               )}
             </div>

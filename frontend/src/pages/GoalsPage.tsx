@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Plus, Sparkles, CheckCircle2, AlertTriangle, Clock, Trash2, X } from "lucide-react";
+import { Plus, Sparkles, CheckCircle2, AlertTriangle, Clock, Trash2, X, Pencil } from "lucide-react";
 import { formatCurrency, formatDate, formatNumberToVietnameseWords } from "@/lib/utils";
 import {
   createGoal,
   deleteGoal as apiDeleteGoal,
   listGoals,
+  updateGoal,
   type GoalInput,
   type GoalRecord,
 } from "@/lib/api";
@@ -22,7 +23,11 @@ const barColor: Record<GoalRecord["status"], string> = {
   achieved: "#22C55E",
 };
 
-function GoalCard({ goal, onDelete }: Readonly<{ goal: GoalRecord; onDelete: (id: string) => void }>) {
+function GoalCard({
+  goal,
+  onDelete,
+  onEdit,
+}: Readonly<{ goal: GoalRecord; onDelete: (id: string) => void; onEdit: (goal: GoalRecord) => void }>) {
   const pct = Math.min(goal.progress_percent, 100);
   const { label, cls, Icon } = statusConfig[goal.status];
 
@@ -45,9 +50,16 @@ function GoalCard({ goal, onDelete }: Readonly<{ goal: GoalRecord; onDelete: (id
             {label}
           </span>
           <button
+            onClick={() => onEdit(goal)}
+            aria-label="Chỉnh sửa mục tiêu"
+            className="w-8 h-8 rounded-md border border-stitch-outline-variant text-stitch-on-surface-variant hover:text-brand-blue-dark hover:bg-blue-50 flex items-center justify-center transition-colors"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button
             onClick={() => onDelete(goal.id)}
             aria-label="Xóa mục tiêu"
-            className="text-stitch-on-surface-variant hover:text-danger transition-colors p-1"
+            className="w-8 h-8 rounded-md border border-stitch-outline-variant text-stitch-on-surface-variant hover:text-danger hover:bg-red-50 flex items-center justify-center transition-colors"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -96,6 +108,18 @@ function GoalCard({ goal, onDelete }: Readonly<{ goal: GoalRecord; onDelete: (id
       )}
     </div>
   );
+}
+
+function toGoalInput(goal: GoalRecord): GoalInput {
+  return {
+    title: goal.title,
+    emoji: goal.emoji,
+    target_amount: goal.target_amount,
+    current_amount: goal.current_amount,
+    monthly_target: goal.monthly_target,
+    deadline: goal.deadline,
+    ai_note: goal.ai_note ?? "",
+  };
 }
 
 const EMPTY_FORM: GoalInput = {
@@ -243,9 +267,145 @@ function CreateGoalModal({
   );
 }
 
+function EditGoalModal({
+  goal,
+  onClose,
+  onUpdated,
+}: Readonly<{ goal: GoalRecord; onClose: () => void; onUpdated: () => void }>) {
+  const [form, setForm] = useState<GoalInput>(() => toGoalInput(goal));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (!form.title.trim() || form.target_amount <= 0) {
+      setError("Vui lòng nhập tên mục tiêu và số tiền mục tiêu hợp lệ.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await updateGoal(goal.id, {
+        ...form,
+        title: form.title.trim(),
+        deadline: form.deadline || null,
+      });
+      onUpdated();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể cập nhật mục tiêu.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-lg shadow-soft w-full max-w-md p-lg space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="section-title">Chỉnh Sửa Mục Tiêu</h3>
+          <button onClick={onClose} aria-label="Đóng" className="text-stitch-on-surface-variant hover:text-stitch-on-surface">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex gap-3">
+            <div className="w-20 space-y-1.5">
+              <label className="text-label-caps text-stitch-on-surface-variant">Icon</label>
+              <input
+                type="text"
+                value={form.emoji}
+                onChange={(e) => setForm({ ...form, emoji: e.target.value })}
+                className="stitch-input text-center"
+                maxLength={4}
+              />
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <label className="text-label-caps text-stitch-on-surface-variant">Tên mục tiêu</label>
+              <input
+                type="text"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                className="stitch-input"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-label-caps text-stitch-on-surface-variant">Số tiền mục tiêu</label>
+              <input
+                type="number"
+                value={form.target_amount || ""}
+                onChange={(e) => setForm({ ...form, target_amount: Number(e.target.value) })}
+                className="stitch-input"
+                min={0}
+              />
+              {(form.target_amount ?? 0) > 0 && (
+                <span className="text-[10px] text-stitch-primary-container block mt-0.5 leading-tight">
+                  Định dạng: <strong>{formatCurrency(form.target_amount ?? 0)}</strong> {formatNumberToVietnameseWords(form.target_amount ?? 0) && `(${formatNumberToVietnameseWords(form.target_amount ?? 0)})`}
+                </span>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-label-caps text-stitch-on-surface-variant">Đã tiết kiệm</label>
+              <input
+                type="number"
+                value={form.current_amount || ""}
+                onChange={(e) => setForm({ ...form, current_amount: Number(e.target.value) })}
+                className="stitch-input"
+                min={0}
+              />
+              {(form.current_amount ?? 0) > 0 && (
+                <span className="text-[10px] text-stitch-primary-container block mt-0.5 leading-tight">
+                  Định dạng: <strong>{formatCurrency(form.current_amount ?? 0)}</strong> {formatNumberToVietnameseWords(form.current_amount ?? 0) && `(${formatNumberToVietnameseWords(form.current_amount ?? 0)})`}
+                </span>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-label-caps text-stitch-on-surface-variant">Tiết kiệm/tháng</label>
+              <input
+                type="number"
+                value={form.monthly_target || ""}
+                onChange={(e) => setForm({ ...form, monthly_target: Number(e.target.value) })}
+                className="stitch-input"
+                min={0}
+              />
+              {(form.monthly_target ?? 0) > 0 && (
+                <span className="text-[10px] text-stitch-primary-container block mt-0.5 leading-tight">
+                  Định dạng: <strong>{formatCurrency(form.monthly_target ?? 0)}</strong> {formatNumberToVietnameseWords(form.monthly_target ?? 0) && `(${formatNumberToVietnameseWords(form.monthly_target ?? 0)})`}
+                </span>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-label-caps text-stitch-on-surface-variant">Hạn chót</label>
+              <input
+                type="date"
+                value={form.deadline ?? ""}
+                onChange={(e) => setForm({ ...form, deadline: e.target.value || null })}
+                className="stitch-input"
+              />
+            </div>
+          </div>
+
+          {error && <p className="text-body-sm text-danger">{error}</p>}
+        </div>
+
+        <div className="flex justify-end gap-3 pt-2">
+          <button onClick={onClose} className="btn-outline">Hủy</button>
+          <button onClick={submit} disabled={saving} className="btn-primary">
+            {saving ? "Đang lưu…" : "Lưu thay đổi"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function GoalsPage() {
   const { data, loading, error, reload } = useApiData(() => listGoals(), []);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<GoalRecord | null>(null);
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("Bạn có chắc muốn xóa mục tiêu này?")) return;
@@ -309,13 +469,27 @@ export function GoalsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-lg">
-              {goals.map((goal) => <GoalCard key={goal.id} goal={goal} onDelete={handleDelete} />)}
+              {goals.map((goal) => (
+                <GoalCard
+                  key={goal.id}
+                  goal={goal}
+                  onDelete={handleDelete}
+                  onEdit={setEditingGoal}
+                />
+              ))}
             </div>
           )}
         </>
       )}
 
       {showCreate && <CreateGoalModal onClose={() => setShowCreate(false)} onCreated={reload} />}
+      {editingGoal && (
+        <EditGoalModal
+          goal={editingGoal}
+          onClose={() => setEditingGoal(null)}
+          onUpdated={reload}
+        />
+      )}
     </div>
   );
 }

@@ -4,16 +4,15 @@ import {
   PieChart, Pie, Cell, Legend, LineChart, Line,
 } from "recharts";
 import { formatCurrency, formatNumberToVietnameseWords } from "@/lib/utils";
-import { Edit3, Filter, Loader2, X } from "lucide-react";
-import { listTransactions, updateTransaction, type TransactionRecord } from "@/lib/api";
+import { CalendarClock, Edit3, Filter, Loader2, X } from "lucide-react";
+import { TRANSACTIONS_CHANGED_EVENT, listTransactions, updateTransaction, type TransactionRecord } from "@/lib/api";
 import { useApiData } from "@/hooks/useApiData";
-import { CATEGORY_META } from "@/lib/categories";
+import { CATEGORY_META, categoryMeta } from "@/lib/categories";
 import {
   deriveExpenseByCategory,
   deriveMonthlyTrend,
   deriveWalletSummary,
   deriveWeeklyExpense,
-  toRecentTransactions,
 } from "@/lib/derive";
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -33,6 +32,19 @@ const categoryOptions = Object.entries(CATEGORY_META).map(([value, meta]) => ({
   label: meta.label,
 }));
 
+const entryDateTimeFormatter = new Intl.DateTimeFormat("vi-VN", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+const monthFormatter = new Intl.DateTimeFormat("vi-VN", {
+  month: "long",
+  year: "numeric",
+});
+
 interface EditTransactionForm {
   type: "expense" | "income";
   amount: string;
@@ -43,6 +55,43 @@ interface EditTransactionForm {
 
 function toDateInputValue(txn: TransactionRecord): string {
   return (txn.transaction_date ?? txn.created_at).slice(0, 10);
+}
+
+function parseCreatedAt(txn: TransactionRecord): Date {
+  const createdAt = new Date(txn.created_at);
+  if (!Number.isNaN(createdAt.getTime())) return createdAt;
+
+  const fallback = new Date(txn.transaction_date ?? Date.now());
+  return Number.isNaN(fallback.getTime()) ? new Date() : fallback;
+}
+
+function formatEntryDateTime(txn: TransactionRecord): string {
+  return entryDateTimeFormatter.format(parseCreatedAt(txn));
+}
+
+function monthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(date: Date): string {
+  return monthFormatter.format(date).replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function groupTransactionsByEntryMonth(txns: TransactionRecord[]) {
+  const groups: Array<{ key: string; label: string; transactions: TransactionRecord[] }> = [];
+
+  for (const txn of [...txns].sort((a, b) => parseCreatedAt(b).getTime() - parseCreatedAt(a).getTime())) {
+    const date = parseCreatedAt(txn);
+    const key = monthKey(date);
+    const existing = groups.find((group) => group.key === key);
+    if (existing) {
+      existing.transactions.push(txn);
+    } else {
+      groups.push({ key, label: monthLabel(date), transactions: [txn] });
+    }
+  }
+
+  return groups;
 }
 
 function EditTransactionModal({
@@ -189,10 +238,15 @@ function EditTransactionModal({
 }
 
 export function AnalyticsPage() {
-  const { data: transactions, loading, error, reload } = useApiData(() => listTransactions(), []);
+  const { data: transactions, loading, error, reload } = useApiData(
+    () => listTransactions(),
+    [],
+    { refreshEvents: [TRANSACTIONS_CHANGED_EVENT] },
+  );
   const [editingTransaction, setEditingTransaction] = useState<TransactionRecord | null>(null);
   const txns = transactions ?? [];
   const transactionsById = useMemo(() => new Map(txns.map((txn) => [txn.id, txn])), [txns]);
+  const transactionGroups = useMemo(() => groupTransactionsByEntryMonth(txns), [txns]);
 
   if (loading) {
     return <div className="py-20 text-center text-stitch-on-surface-variant">Đang tải dữ liệu phân tích…</div>;
@@ -209,7 +263,6 @@ export function AnalyticsPage() {
   const expenseByCategory = deriveExpenseByCategory(txns);
   const weeklyExpense = deriveWeeklyExpense(txns);
   const monthlyTrend = deriveMonthlyTrend(txns);
-  const recentTransactions = toRecentTransactions(txns, txns.length);
   const summary = deriveWalletSummary(txns);
   const totalExpense = expenseByCategory.reduce((s, c) => s + c.value, 0);
 
@@ -335,36 +388,56 @@ export function AnalyticsPage() {
         <div className="flex items-center justify-between mb-lg">
           <h3 className="section-title">Tất Cả Giao Dịch</h3>
           <span className="border border-stitch-outline-variant text-stitch-on-surface-variant px-3 py-1 rounded-full text-body-sm">
-            {recentTransactions.length} giao dịch
+            {txns.length} giao dịch
           </span>
         </div>
-        <div className="divide-y divide-stitch-outline-variant/60">
-          {recentTransactions.map((txn) => (
-            <div key={txn.id} className="flex items-center gap-4 py-3.5">
-              <div className="w-11 h-11 rounded-lg bg-stitch-surface-container flex items-center justify-center text-xl flex-shrink-0">{txn.icon}</div>
-              <div className="flex-1 min-w-0">
-                <div className="text-base font-medium text-stitch-on-surface truncate">{txn.description}</div>
-                <div className="text-body-sm text-stitch-on-surface-variant">{txn.category}</div>
+        <div className="h-[560px] max-h-[70vh] overflow-y-scroll rounded-lg bg-stitch-surface-container-low/40 px-3 py-1">
+          {transactionGroups.map((group) => (
+            <div key={group.key}>
+              <div className="sticky top-0 z-10 -mx-3 flex items-center justify-between border-b border-stitch-outline-variant/60 bg-white/95 px-3 py-2 backdrop-blur">
+                <span className="text-label-caps text-stitch-on-surface-variant">{group.label}</span>
+                <span className="text-xs font-semibold text-stitch-on-surface-variant">{group.transactions.length} giao dịch</span>
               </div>
-              <div className="text-right">
-                <div className={`text-base font-bold tabular-nums ${txn.type === "income" ? "text-success" : "text-stitch-on-surface"}`}>
-                  {txn.type === "income" ? "+" : ""}{formatCurrency(Math.abs(txn.amount))}
-                </div>
-                <div className="flex items-center justify-end gap-2 mt-1">
-                  <span className={`text-label-caps px-2 py-0.5 rounded-full ${txn.type === "income" ? "bg-green-50 text-green-700" : "bg-stitch-surface-container text-stitch-on-surface-variant"}`}>
-                    {txn.type === "income" ? "Thu" : "Chi"}
-                  </span>
-                  <button
-                    onClick={() => {
-                      const raw = transactionsById.get(txn.id);
-                      if (raw) setEditingTransaction(raw);
-                    }}
-                    aria-label="Chỉnh sửa giao dịch"
-                    className="w-7 h-7 rounded-md border border-stitch-outline-variant text-stitch-on-surface-variant hover:text-brand-blue-dark hover:bg-blue-50 flex items-center justify-center transition-colors"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+              <div className="divide-y divide-stitch-outline-variant/60">
+                {group.transactions.map((txn) => {
+                  const meta = categoryMeta(txn.category);
+                  const description = txn.description || txn.merchant || meta.label;
+                  const signedAmount = txn.type === "income" ? txn.amount : -txn.amount;
+
+                  return (
+                    <div key={txn.id} className="flex items-center gap-4 py-3.5">
+                      <div className="w-11 h-11 rounded-lg bg-stitch-surface-container flex items-center justify-center text-xl flex-shrink-0">{meta.icon}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-base font-medium text-stitch-on-surface truncate">{description}</div>
+                        <div className="text-body-sm text-stitch-on-surface-variant">{meta.label}</div>
+                        <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-stitch-outline-variant/60 bg-white px-2 py-0.5 text-xs font-medium text-stitch-on-surface-variant">
+                          <CalendarClock className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span>Ngày giờ nhập: {formatEntryDateTime(txn)}</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-base font-bold tabular-nums ${txn.type === "income" ? "text-success" : "text-stitch-on-surface"}`}>
+                          {txn.type === "income" ? "+" : ""}{formatCurrency(Math.abs(signedAmount))}
+                        </div>
+                        <div className="flex items-center justify-end gap-2 mt-1">
+                          <span className={`text-label-caps px-2 py-0.5 rounded-full ${txn.type === "income" ? "bg-green-50 text-green-700" : "bg-stitch-surface-container text-stitch-on-surface-variant"}`}>
+                            {txn.type === "income" ? "Thu" : "Chi"}
+                          </span>
+                          <button
+                            onClick={() => {
+                              const raw = transactionsById.get(txn.id);
+                              if (raw) setEditingTransaction(raw);
+                            }}
+                            aria-label="Chỉnh sửa giao dịch"
+                            className="w-7 h-7 rounded-md border border-stitch-outline-variant text-stitch-on-surface-variant hover:text-brand-blue-dark hover:bg-blue-50 flex items-center justify-center transition-colors"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}

@@ -46,7 +46,11 @@ const MONTH_LABELS = ["Th1", "Th2", "Th3", "Th4", "Th5", "Th6", "Th7", "Th8", "T
 const WEEKDAY_LABELS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 
 function txnDate(txn: TransactionRecord): Date {
-  return new Date(txn.transaction_date ?? txn.created_at);
+  const enteredAt = new Date(txn.created_at);
+  if (!Number.isNaN(enteredAt.getTime())) return enteredAt;
+
+  const transactionDate = new Date(txn.transaction_date ?? Date.now());
+  return Number.isNaN(transactionDate.getTime()) ? new Date() : transactionDate;
 }
 
 function sameMonth(date: Date, ref: Date): boolean {
@@ -167,7 +171,7 @@ export function toRecentTransactions(txns: TransactionRecord[], limit = 8): Rece
         amount: txn.type === "income" ? txn.amount : -txn.amount,
         category: meta.label,
         description: txn.description || txn.merchant || meta.label,
-        date: txn.transaction_date ?? txn.created_at,
+        date: txn.created_at,
         icon: meta.icon,
       };
     });

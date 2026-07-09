@@ -9,7 +9,7 @@ import {
 } from "recharts";
 import { formatCurrency, formatPercent, formatDate } from "@/lib/utils";
 import { Link } from "react-router-dom";
-import { listGoals, listInsights, listTransactions, type GoalRecord, type InsightRecord, type TransactionRecord } from "@/lib/api";
+import { TRANSACTIONS_CHANGED_EVENT, listGoals, listInsights, listTransactions, type GoalRecord, type InsightRecord, type TransactionRecord } from "@/lib/api";
 import { useApiData } from "@/hooks/useApiData";
 import { deriveMonthlyTrend, deriveWalletSummary, toRecentTransactions } from "@/lib/derive";
 import { useAuth } from "@/lib/auth";
@@ -96,7 +96,7 @@ export function DashboardPage() {
       listInsights().catch(() => []),
     ]);
     return { transactions, goals, insights };
-  }, []);
+  }, [], { refreshEvents: [TRANSACTIONS_CHANGED_EVENT] });
 
   if (loading) {
     return <div className="py-20 text-center text-stitch-on-surface-variant">Đang tải bảng điều khiển…</div>;
