@@ -2,6 +2,7 @@ const ENV_API_URL = import.meta.env.VITE_API_URL as string | undefined;
 const IS_PROD = import.meta.env.PROD;
 const REQUEST_TIMEOUT_MS = Number(import.meta.env.VITE_TIMEOUT_MS ?? 30000);
 const RECEIPT_ANALYZE_TIMEOUT_MS = Number(import.meta.env.VITE_RECEIPT_TIMEOUT_MS ?? 120000);
+const FINANCIAL_REPORT_TIMEOUT_MS = Number(import.meta.env.VITE_REPORT_TIMEOUT_MS ?? 60000);
 const API_URLS = ENV_API_URL
   ? [ENV_API_URL]
   : IS_PROD
@@ -618,6 +619,9 @@ export async function listTransactions(limit = 200, offset = 0, includeTotal = f
 export async function getFinancialReport(range: ReportRange): Promise<FinancialReport> {
   return request<FinancialReport>(`/reports/summary?range=${range}`, {
     headers: authHeader(),
+  }, {
+    timeoutMs: FINANCIAL_REPORT_TIMEOUT_MS,
+    timeoutMessage: "Không thể tạo báo cáo tài chính trong 60 giây. Vui lòng thử lại.",
   });
 }
 
