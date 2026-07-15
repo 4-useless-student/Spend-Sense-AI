@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime, timedelta
 from typing import Literal
 
@@ -23,6 +24,11 @@ from src.db.models import FinancialGoal, InvestmentAsset, Transaction, User
 from src.llm.gemini_client import generate_financial_report_review
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+# A report should remain usable even if a third-party price source or Gemini is
+# slow. Both stages have deterministic fallbacks below.
+_REPORT_MARKET_TIMEOUT_SECONDS = 3.0
+_REPORT_AI_TIMEOUT_SECONDS = 4.0
 
 
 @router.get("/summary", response_model=FinancialReportResponse)
@@ -57,11 +63,11 @@ async def get_financial_report(
         )
         for txn in sorted(largest_expenses, key=lambda item: item.amount, reverse=True)[:5]
     ]
-    investment = _investment_summary(assets)
+    investment = await _investment_summary(assets)
     goal_progress = [_goal_progress(goal) for goal in goals]
 
     title = "Báo cáo hôm nay" if range == "today" else "Báo cáo 7 ngày qua"
-    ai_review = _ai_review(
+    ai_review = await _ai_review(
         {
             "range": range,
             "title": title,
@@ -144,7 +150,7 @@ def _category_breakdown(transactions: list[Transaction], total_expense: float) -
     ]
 
 
-def _investment_summary(assets: list[InvestmentAsset]) -> ReportInvestmentSummaryResponse:
+async def _investment_summary(assets: list[InvestmentAsset]) -> ReportInvestmentSummaryResponse:
     if not assets:
         return ReportInvestmentSummaryResponse(
             status="none",
@@ -156,7 +162,16 @@ def _investment_summary(assets: list[InvestmentAsset]) -> ReportInvestmentSummar
             assets=[],
         )
 
-    prices = get_market_prices(list({asset.symbol for asset in assets if asset.type != "saving"}))
+    symbols = list({asset.symbol for asset in assets if asset.type != "saving"})
+    try:
+        prices = await asyncio.wait_for(
+            asyncio.to_thread(get_market_prices, symbols),
+            timeout=_REPORT_MARKET_TIMEOUT_SECONDS,
+        )
+    except Exception:
+        # Using the purchase price below still gives the report a complete and
+        # internally consistent investment section when market data is slow.
+        prices = {}
     evaluated_assets: list[ReportInvestmentAssetResponse] = []
     total_invested = 0.0
     current_value = 0.0
@@ -228,9 +243,15 @@ def _goal_progress(goal: FinancialGoal) -> ReportGoalProgressResponse:
     )
 
 
-def _ai_review(payload: dict) -> ReportAiReviewResponse:
-    result = generate_financial_report_review(payload)
-    if result.ok and isinstance(result.data, dict):
+async def _ai_review(payload: dict) -> ReportAiReviewResponse:
+    try:
+        result = await asyncio.wait_for(
+            asyncio.to_thread(generate_financial_report_review, payload),
+            timeout=_REPORT_AI_TIMEOUT_SECONDS,
+        )
+    except Exception:
+        result = None
+    if result is not None and result.ok and isinstance(result.data, dict):
         return ReportAiReviewResponse(
             summary=str(result.data.get("summary") or ""),
             observations=[str(item) for item in result.data.get("observations", []) if str(item).strip()],
